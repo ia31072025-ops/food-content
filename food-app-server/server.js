@@ -1,58 +1,54 @@
 const express = require('express');
-const cors = require('cors'); // Обязательно для исправления ошибки CORS
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const cors = require('cors');
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 require('dotenv').config();
 
 const app = express();
 
-// Настройка CORS: разрешаем запросы с любого порта (3000, 3001 и т.д.)
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Проверка наличия ключа в .env
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-    console.error("КРИТИЧЕСКАЯ ОШИБКА: API ключ не найден в файле .env!");
+// Проверка API ключа
+if (!process.env.GEMINI_API_KEY) {
+    console.error("КРИТИЧЕСКАЯ ОШИБКА: GEMINI_API_KEY не установлен в Environment Variables!");
 }
 
-const genAI = new GoogleGenerativeAI(apiKey);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post('/generate', async (req, res) => {
-    const { dishName } = req.body;
-    console.log("Запрос на блюдо:", dishName);
-
     try {
+        const { dish } = req.body;
+        console.log(`Запрос на блюдо: ${dish}`);
+
+        // Используем модель gemini-1.5-flash (она лучше понимает структуру запроса)
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-        const prompt = `Ты профессиональный шеф-повар. Составь контент для блюда: ${dishName}. 
-        Ответ дай СТРОГО в формате JSON без разметки markdown и без слов \`\`\`json.
-        Структура JSON:
-        {
-          "title": "Название",
-          "ingredients": ["ингред1", "ингред2"],
-          "description": "пошаговая инструкция",
-          "youtubeSEO": { "tags": "теги через запятую", "description": "SEO описание" },
-          "socialPosts": { "tg": "пост для телеграм", "vk": "пост для вк" }
-        }`;
+        // Формируем запрос как объект, чтобы избежать ошибок кодировки (ByteString error)
+        const result = await model.generateContent({
+            contents: [{ 
+                role: 'user', 
+                parts: [{ text: `Напиши подробный рецепт для блюда: ${dish}. Ответ должен быть полностью на русском языке.` }] 
+            }]
+        });
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        
-        // Очистка текста на случай, если ИИ всё же добавил лишние символы
-        const cleanJson = text.replace(/```json|```/g, "").trim();
-        const jsonResponse = JSON.parse(cleanJson);
-        
-        res.json(jsonResponse);
+        const response = await result.response;
+        const text = response.text();
+
+        console.log("Рецепт успешно сгенерирован");
+        res.json({ recipe: text });
 
     } catch (error) {
-        console.error("Ошибка ИИ:", error.message);
-        res.status(500).json({ error: "Ошибка генерации", details: error.message });
+        console.error('Ошибка ИИ:', error.message);
+        res.status(500).json({ 
+            error: 'Ошибка сервера при генерации', 
+            details: error.message 
+        });
     }
 });
 
-app.get('/', (req, res) => res.send("Сервер работает на порту 10000. Жду запросы на /generate"));
-
-const PORT = 10000;
+// Настройка порта для Render
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ СЕРВЕР ЗАПУЩЕН: http://localhost:${PORT}`);
+    console.log(`✅ СЕРВЕР ЗАПУЩЕН: Port ${PORT}`);
 });
