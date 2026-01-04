@@ -23,10 +23,12 @@ app.post('/generate', async (req, res) => {
         console.log(`Принят запрос на блюдо: ${dish}`);
 
         // Используем стабильную версию v1, чтобы избежать ошибки 404
+        // Используем ПОЛНОЕ имя модели с префиксом
         const model = genAI.getGenerativeModel(
-            { model: "gemini-1.5-flash" },
+            { model: "models/gemini-1.5-flash" }, // Добавили models/
             { apiVersion: 'v1' }
         );
+        
 
         const prompt = `Напиши подробный пошаговый рецепт для блюда: ${dish}. Ответ должен быть на русском языке.`;
 
