@@ -4,48 +4,82 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// Настройка CORS
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST']
+}));
+
 app.use(express.json());
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Проверка ключа
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+    console.error("КРИТИЧЕСКАЯ ОШИБКА: API ключ отсутствует в переменных окружения!");
+}
+
+// Инициализация Google AI
+const genAI = new GoogleGenerativeAI(apiKey);
 
 app.post('/generate', async (req, res) => {
-    const { dishName } = req.body; // App.tsx отправляет dishName
-
+    const { dishName } = req.body;
+    
     if (!dishName) {
-        return res.status(400).json({ error: 'Название блюда обязательно' });
+        return res.status(400).json({ error: "Название блюда не получено" });
     }
 
     try {
+        // Используем проверенную модель flash
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-        const prompt = `Составь контент для блюда: ${dishName}. 
-        Ответ верни СТРОГО в формате JSON без лишнего текста и без разметки markdown (без кавычек \`\`\`json).
+        const prompt = `Ты — профессиональный шеф-повар. 
+        Составь контент для блюда: ${dishName}. 
+        Ответ верни СТРОГО в формате JSON без разметки markdown и без слов \`\`\`json.
+        
         Структура JSON:
         {
           "title": "Название",
           "ingredients": ["ингред1", "ингред2"],
-          "description": "Пошаговый рецепт",
-          "youtubeSEO": { "tags": "тег1, тег2", "description": "SEO описание" },
-          "socialPosts": { "tg": "пост для телеграм", "vk": "пост для вк" }
+          "description": "Пошаговое приготовление",
+          "youtubeSEO": { "tags": "теги через запятую", "description": "SEO текст" },
+          "socialPosts": { "tg": "текст для телеграм", "vk": "текст для вк" }
         }`;
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        let text = response.text();
+        const text = response.text();
         
-        // Очистка от возможных символов разметки markdown, если ИИ их добавит
-        text = text.replace(/```json|```/g, "").trim();
-
-        const jsonResponse = JSON.parse(text);
+        // Очистка текста от лишних символов
+        const cleanJson = text.replace(/```json|```/g, "").trim();
+        
+        const jsonResponse = JSON.parse(cleanJson);
         res.json(jsonResponse);
+
     } catch (error) {
-        console.error('Ошибка:', error);
-        res.status(500).json({ error: 'Ошибка генерации', details: error.message });
+        console.error("Ошибка в процессе генерации:", error);
+        
+        // Если ошибка именно от Google API
+        if (error.status === 404) {
+            return res.status(500).json({ 
+                error: "Модель не найдена", 
+                details: "Библиотека Google AI не смогла найти модель. Попробуйте обновить зависимости." 
+            });
+        }
+
+        res.status(500).json({ 
+            error: "Ошибка генерации на стороне сервера", 
+            details: error.message 
+        });
     }
 });
 
+// Базовый роут для проверки
+app.get('/', (req, res) => {
+    res.send('Сервер работает. Жду POST запросы на /generate');
+});
+
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Сервер запущен на порту ${PORT}`);
 });
