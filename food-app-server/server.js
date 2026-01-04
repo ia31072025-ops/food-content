@@ -6,52 +6,64 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Проверка работы сервера
-app.get('/', (req, res) => res.send('Backend is LIVE!'));
+app.get('/', (req, res) => res.send('Сервер готов!'));
 
 app.post('/generate', async (req, res) => {
     try {
         const { dish } = req.body;
         const apiKey = process.env.GEMINI_API_KEY;
 
-        if (!apiKey) {
-            return res.status(500).json({ error: 'API KEY MISSING IN RENDER' });
+        if (!apiKey) return res.status(500).json({ error: 'API ключ не найден в Render' });
+
+        // Список всех возможных имен модели от новых к старым
+        const modelVariants = [
+            'gemini-1.5-flash',
+            'gemini-1.5-pro',
+            'gemini-1.0-pro'
+        ];
+
+        let successData = null;
+        let lastError = '';
+
+        // Цикл, который пробует каждую модель, пока не получит ответ
+        for (const modelName of modelVariants) {
+            try {
+                console.log(`Пробую вызвать модель: ${modelName}...`);
+                const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: `Напиши рецепт блюда: ${dish} на русском.` }] }]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.candidates && data.candidates[0].content) {
+                    successData = data.candidates[0].content.parts[0].text;
+                    console.log(`✅ Успешно сработало с моделью: ${modelName}`);
+                    break; // Выходим из цикла, если получили ответ
+                } else {
+                    lastError = data.error?.message || 'Неизвестная ошибка';
+                    console.log(`❌ Модель ${modelName} выдала ошибку: ${lastError}`);
+                }
+            } catch (err) {
+                lastError = err.message;
+            }
         }
 
-        // Мы используем v1beta для 1.5-flash, так как это самый стабильный путь сейчас
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: `Напиши рецепт для: ${dish} на русском языке.` }]
-                }]
-            })
-        });
-
-        const data = await response.json();
-
-        // Если модель не найдена, пробуем запасной вариант (gemini-pro)
-        if (data.error && data.error.code === 404) {
-            console.log("Flash not found, trying gemini-pro...");
-            const backupUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
-            // ... (аналогичный запрос можно сделать здесь, но Flash должен сработать)
+        if (successData) {
+            res.json({ recipe: successData });
+        } else {
+            res.status(500).json({ error: 'Google отклонил все варианты моделей', details: lastError });
         }
-
-        if (data.error) {
-            throw new Error(data.error.message);
-        }
-
-        const recipeText = data.candidates[0].content.parts[0].text;
-        res.json({ recipe: recipeText });
 
     } catch (error) {
-        console.error('API Error:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
