@@ -7,36 +7,45 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Инициализация Google AI с твоим ключом
-// Ключ будет браться из Environment Variables на Render или из файла .env
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'ТВОЙ_КЛЮЧ_ЕСЛИ_НЕТ_ENV');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post('/generate', async (req, res) => {
-    const { prompt } = req.body;
+    const { dishName } = req.body; // App.tsx отправляет dishName
 
-    if (!prompt) {
-        return res.status(400).json({ error: 'Запрос не может быть пустым' });
+    if (!dishName) {
+        return res.status(400).json({ error: 'Название блюда обязательно' });
     }
 
     try {
-        // Используем актуальное название модели
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-        const result = await model.generateContent(`Ты — шеф-повар. Составь подробный рецепт для блюда: ${prompt}`);
-        const response = await result.response;
-        const text = response.text();
+        const prompt = `Составь контент для блюда: ${dishName}. 
+        Ответ верни СТРОГО в формате JSON без лишнего текста и без разметки markdown (без кавычек \`\`\`json).
+        Структура JSON:
+        {
+          "title": "Название",
+          "ingredients": ["ингред1", "ингред2"],
+          "description": "Пошаговый рецепт",
+          "youtubeSEO": { "tags": "тег1, тег2", "description": "SEO описание" },
+          "socialPosts": { "tg": "пост для телеграм", "vk": "пост для вк" }
+        }`;
 
-        res.json({ recipe: text });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        let text = response.text();
+        
+        // Очистка от возможных символов разметки markdown, если ИИ их добавит
+        text = text.replace(/```json|```/g, "").trim();
+
+        const jsonResponse = JSON.parse(text);
+        res.json(jsonResponse);
     } catch (error) {
-        console.error('Ошибка Gemini:', error);
-        res.status(500).json({ 
-            error: 'Ошибка при генерации рецепта',
-            details: error.message 
-        });
+        console.error('Ошибка:', error);
+        res.status(500).json({ error: 'Ошибка генерации', details: error.message });
     }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Сервер запущен на порту ${PORT}`);
 });
