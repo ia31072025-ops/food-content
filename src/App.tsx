@@ -29,7 +29,11 @@ export default function App() {
 
     try {
       // Отправляем запрос на твой сервер Node.js (порт 5000)
-      const response = await fetch('http://localhost:5000/generate', {
+      // Было:
+// const response = await fetch('http://localhost:5000/generate', {
+
+// Стало:
+const response = await fetch('https://food-content.onrender.com/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dishName: recipeName })
