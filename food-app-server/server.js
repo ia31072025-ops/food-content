@@ -13,57 +13,52 @@ app.post('/generate', async (req, res) => {
         const { dish } = req.body;
         const apiKey = process.env.GEMINI_API_KEY;
 
-        if (!apiKey) return res.status(500).json({ error: 'API ключ не найден в Render' });
+        if (!apiKey) return res.status(500).json({ error: 'API KEY не найден' });
 
-        // Список всех возможных имен модели от новых к старым
-        const modelVariants = [
-            'gemini-1.5-flash',
-            'gemini-1.5-pro',
-            'gemini-1.0-pro'
-        ];
+        // МАКСИМАЛЬНО СТАБИЛЬНЫЙ URL (v1)
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-        let successData = null;
-        let lastError = '';
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: `Напиши подробный рецепт блюда: ${dish} на русском языке.` }]
+                }]
+            })
+        });
 
-        // Цикл, который пробует каждую модель, пока не получит ответ
-        for (const modelName of modelVariants) {
-            try {
-                console.log(`Пробую вызвать модель: ${modelName}...`);
-                const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+        const data = await response.json();
 
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: `Напиши рецепт блюда: ${dish} на русском.` }] }]
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.candidates && data.candidates[0].content) {
-                    successData = data.candidates[0].content.parts[0].text;
-                    console.log(`✅ Успешно сработало с моделью: ${modelName}`);
-                    break; // Выходим из цикла, если получили ответ
-                } else {
-                    lastError = data.error?.message || 'Неизвестная ошибка';
-                    console.log(`❌ Модель ${modelName} выдала ошибку: ${lastError}`);
-                }
-            } catch (err) {
-                lastError = err.message;
+        // Если Google вернул ошибку (например, 404 или 403)
+        if (data.error) {
+            console.error('Google API Error:', data.error.message);
+            
+            // Если 1.5-flash не сработал, пробуем СТАРУЮ модель-заглушку
+            const backupUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
+            const backupRes = await fetch(backupUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: `Напиши рецепт: ${dish}` }] }]
+                })
+            });
+            const backupData = await backupRes.json();
+            
+            if (backupData.error) {
+                throw new Error(`Google отказал обеим моделям: ${data.error.message}`);
             }
+            return res.json({ recipe: backupData.candidates[0].content.parts[0].text });
         }
 
-        if (successData) {
-            res.json({ recipe: successData });
-        } else {
-            res.status(500).json({ error: 'Google отклонил все варианты моделей', details: lastError });
-        }
+        const recipeText = data.candidates[0].content.parts[0].text;
+        res.json({ recipe: recipeText });
 
     } catch (error) {
+        console.error('Ошибка:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server started on ${PORT}`));
