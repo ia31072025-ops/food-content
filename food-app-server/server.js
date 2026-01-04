@@ -12,16 +12,15 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 app.post('/generate', async (req, res) => {
     try {
         const { dish } = req.body;
-        console.log(`Запрос на блюдо: ${dish}`);
+        console.log(`Запрос: ${dish}`);
 
-        // ОСТАВЛЯЕМ ТОЛЬКО PRO
+        // Здесь стоит ТОЛЬКО gemini-pro
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
         const result = await model.generateContent(`Напиши рецепт блюда ${dish} на русском языке.`);
         const response = await result.response;
-        const text = response.text();
-
-        res.json({ recipe: text });
+        
+        res.json({ recipe: response.text() });
     } catch (error) {
         console.error('Ошибка:', error.message);
         res.status(500).json({ error: error.message });
@@ -30,5 +29,5 @@ app.post('/generate', async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
+    console.log(`Сервер на порту ${PORT}`);
 });
