@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const app = express();
 
-// Разрешаем CORS для всех (чтобы не было NetworkError)
+// Настройка CORS
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST'],
@@ -13,57 +13,59 @@ app.use(cors({
 
 app.use(express.json());
 
-// Главная страница для проверки
-app.get('/', (req, res) => res.send('Сервер готов! Используем стабильную модель 1.5 Flash.'));
+// Главная страница (проверка работоспособности)
+app.get('/', (req, res) => {
+    res.send('Сервер готов! Используем стабильную модель 1.5 Flash.');
+});
 
+// Основной роут для генерации рецепта
 app.post('/generate', async (req, res) => {
     try {
         const { dish } = req.body;
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            return res.status(500).json({ error: 'Ключ API не найден в настройках Render' });
+            console.error('Ошибка: API Ключ отсутствует!');
+            return res.status(500).json({ error: 'Ключ API не найден в настройках' });
         }
 
-        // Используем СТАБИЛЬНУЮ модель 1.5 Flash через прямой URL
+        // Строго используем 1.5-flash
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         const response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{
-                    parts: [{ text: `Напиши подробный рецепт блюда: ${dish} на русском языке. Оформи красиво.` }]
+                    parts: [{ text: `Напиши подробный рецепт блюда: ${dish} на русском языке. Оформи красиво с использованием Markdown.` }]
                 }],
                 generationConfig: {
                     temperature: 0.7,
-                    maxOutputTokens: 800
+                    maxOutputTokens: 1000
                 }
             })
         });
 
         const data = await response.json();
 
-        // Если Google всё-таки ругается на квоту, мы выведем это в лог
+        // Обработка ошибок от Google (включая квоты)
         if (data.error) {
             console.error('Google API Error:', data.error.message);
             return res.status(data.error.code || 500).json({ 
-                error: 'Google ограничил доступ', 
+                error: 'Ошибка Google API', 
                 details: data.error.message 
             });
         }
 
         if (!data.candidates || !data.candidates[0]) {
-            return res.status(500).json({ error: 'Пустой ответ от ИИ' });
+            return res.status(500).json({ error: 'ИИ вернул пустой ответ' });
         }
 
         const recipeText = data.candidates[0].content.parts[0].text;
         res.json({ recipe: recipeText });
 
     } catch (error) {
-        console.error('Server Error:', error.message);
+        console.error('Критическая ошибка сервера:', error.message);
         res.status(500).json({ error: 'Внутренняя ошибка сервера' });
     }
 });
