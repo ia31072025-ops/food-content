@@ -4,37 +4,50 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
 const app = express();
+
+// Настройки
 app.use(cors());
 app.use(express.json());
 
-// Инициализация
+// Проверка ключа в логах (для отладки)
+if (!process.env.GEMINI_API_KEY) {
+    console.error("ОШИБКА: API ключ не найден в переменных окружения!");
+}
+
+// Инициализация Google AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post('/generate', async (req, res) => {
     try {
         const { dish } = req.body;
-        console.log(`Запрос на: ${dish}`);
+        console.log(`Принят запрос на блюдо: ${dish}`);
 
-        // Вариант, который работает в 2025-2026 годах чаще всего
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-        // Упрощенный вызов
-        const result = await model.generateContent(
-            `Напиши рецепт блюда: ${dish}. Отвечай на русском языке.`
+        // Используем стабильную версию v1, чтобы избежать ошибки 404
+        const model = genAI.getGenerativeModel(
+            { model: "gemini-1.5-flash" },
+            { apiVersion: 'v1' }
         );
-        
+
+        const prompt = `Напиши подробный пошаговый рецепт для блюда: ${dish}. Ответ должен быть на русском языке.`;
+
+        const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
 
+        console.log("Рецепт успешно создан");
         res.json({ recipe: text });
+
     } catch (error) {
-        console.error('Ошибка в логах сервера:', error.message);
-        // Если опять 404, сервер ответит нам точной причиной
-        res.status(500).json({ error: "Ошибка API Google", details: error.message });
+        console.error('Ошибка сервера:', error.message);
+        res.status(500).json({ 
+            error: 'Ошибка при обращении к нейросети',
+            details: error.message 
+        });
     }
 });
 
+// Запуск сервера
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Сервер активен на порту ${PORT}`);
+    console.log(`✅ Сервер запущен на порту ${PORT}`);
 });
