@@ -14,8 +14,8 @@ app.post('/generate', async (req, res) => {
         const { dish } = req.body;
         console.log(`Запрос на блюдо: ${dish}`);
 
-        // Используем 'gemini-1.5-flash-latest' — это самый надежный алиас
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        // Самый стабильный вариант для v1
+        const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
         const result = await model.generateContent(`Напиши подробный рецепт для блюда: ${dish} на русском языке.`);
         const response = await result.response;
