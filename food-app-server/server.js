@@ -3,27 +3,15 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
+app.use(cors());
 app.use(express.json());
-
-app.get('/', (req, res) => {
-    res.send('Сервер готов! Теперь работаем на OpenAI GPT-4o-mini.');
-});
 
 app.post('/generate', async (req, res) => {
     try {
         const { dish } = req.body;
-        const apiKey = process.env.OPENAI_API_KEY; // Поменяли имя переменной
+        const apiKey = process.env.OPENAI_API_KEY; // Ключ теперь берется из системы
 
-        if (!apiKey) {
-            return res.status(500).json({ error: 'Ключ OpenAI не найден' });
-        }
+        if (!apiKey) return res.status(500).json({ error: 'Ключ сервера не настроен' });
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -34,30 +22,32 @@ app.post('/generate', async (req, res) => {
             body: JSON.stringify({
                 model: "gpt-4o-mini",
                 messages: [
-                    { role: "system", content: "Ты — шеф-повар. Пиши подробные рецепты на русском языке с использованием Markdown." },
-                    { role: "user", content: `Напиши рецепт блюда: ${dish}` }
+                    { 
+                        role: "system", 
+                        content: "Ты — эксперт по YouTube-маркетингу и шеф-повар. Твоя цель: создать контент, который принесет миллион просмотров." 
+                    },
+                    { 
+                        role: "user", 
+                        content: `Создай полный контент-план для видео: "${dish}". 
+                        Верни JSON: 
+                        {
+                          "recipe": {"title", "ingredients": [], "steps": [], "time", "difficulty"},
+                          "youtube": {"titles": ["Кликбейтный заголовок", "Интригующий", "Поисковый"], "description": "С тайм-кодами и тегами", "tags": []},
+                          "social": {"telegram": "Пост с эмодзи", "vk": "Пост для охватов"}
+                        }` 
+                    }
                 ],
-                temperature: 0.7
+                response_format: { type: "json_object" }
             })
         });
 
         const data = await response.json();
-
-        if (data.error) {
-            console.error("Ошибка OpenAI:", data.error.message);
-            return res.status(500).json({ error: data.error.message });
-        }
-
-        const recipeText = data.choices[0].message.content;
-        res.json({ recipe: recipeText });
-
+        res.json(JSON.parse(data.choices[0].message.content));
     } catch (error) {
-        console.error("Ошибка сервера:", error.message);
-        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка при генерации контента' });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Сервер OpenAI запущен на порту ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Test Server running on ${PORT}`));
