@@ -9,17 +9,25 @@ function App() {
     if (!dish) return;
     setLoading(true);
     try {
-      const res = await fetch('https://food-content1.onrender.com/generate', {
+      const res = await fetch('https://food-backend-ai.onrender.com/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dish })
       });
+      
       const result = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(result.error || 'Ошибка сервера');
+      }
+
       setData(result);
-    } catch (e) {
-      alert('Ошибка связи с сервером');
+    } catch (e: any) {
+      console.error(e);
+      alert('Ошибка: ' + e.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const copy = (text: string) => {
@@ -55,23 +63,23 @@ function App() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
           
           <section style={cardStyle}>
-            <h2 style={{ color: '#2c3e50', borderBottom: '2px solid #FF0000', paddingBottom: '10px' }}>🍳 Рецепт: {data.recipe.title}</h2>
-            <p><strong>⏱ Время:</strong> {data.recipe.time} | <strong>📊 Сложность:</strong> {data.recipe.difficulty}</p>
-            <p><strong>🛒 Ингредиенты:</strong> {data.recipe.ingredients.join(', ')}</p>
+            <h2 style={{ color: '#2c3e50', borderBottom: '2px solid #FF0000', paddingBottom: '10px' }}>🍳 Рецепт: {data.recipe?.title}</h2>
+            <p><strong>⏱ Время:</strong> {data.recipe?.time} | <strong>📊 Сложность:</strong> {data.recipe?.difficulty}</p>
+            <p><strong>🛒 Ингредиенты:</strong> {data.recipe?.ingredients?.join(', ')}</p>
             <div style={{ background: '#fff', padding: '15px', borderRadius: '8px' }}>
-              {data.recipe.steps.map((s: string, i: number) => <p key={i}><strong>{i+1}.</strong> {s}</p>)}
+              {data.recipe?.steps?.map((s: string, i: number) => <p key={i}><strong>{i+1}.</strong> {s}</p>)}
             </div>
           </section>
 
           <section style={cardStyle}>
             <h2 style={{ color: '#2c3e50' }}>🎥 YouTube Optimization</h2>
             <p><strong>💡 Заголовки (нажми, чтобы скопировать):</strong></p>
-            {data.youtube.titles.map((t: string, i: number) => (
+            {data.youtube?.titles?.map((t: string, i: number) => (
               <div key={i} onClick={() => copy(t)} style={copyBoxStyle}>{t}</div>
             ))}
             <p><strong>📝 Описание:</strong></p>
-            <pre style={preStyle}>{data.youtube.description}</pre>
-            <button onClick={() => copy(data.youtube.description)} style={btnSmall}>Скопировать всё описание</button>
+            <pre style={preStyle}>{data.youtube?.description}</pre>
+            <button onClick={() => copy(data.youtube?.description)} style={btnSmall}>Скопировать всё описание</button>
           </section>
 
           <section style={cardStyle}>
@@ -79,11 +87,11 @@ function App() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
               <div>
                 <h4 style={{ color: '#0088cc' }}>Telegram</h4>
-                <div onClick={() => copy(data.social.telegram)} style={copyBoxStyle}>{data.social.telegram}</div>
+                <div onClick={() => copy(data.social?.telegram)} style={copyBoxStyle}>{data.social?.telegram}</div>
               </div>
               <div>
                 <h4 style={{ color: '#45668e' }}>ВКонтакте</h4>
-                <div onClick={() => copy(data.social.vk)} style={copyBoxStyle}>{data.social.vk}</div>
+                <div onClick={() => copy(data.social?.vk)} style={copyBoxStyle}>{data.social?.vk}</div>
               </div>
             </div>
           </section>
@@ -95,7 +103,7 @@ function App() {
 }
 
 const cardStyle = { padding: '25px', borderRadius: '15px', background: '#fcfcfc', border: '1px solid #eaeaea', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' };
-const copyBoxStyle = { padding: '12px', background: '#fff', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', marginBottom: '8px', fontSize: '14px', transition: '0.2s', hover: { background: '#f0f0f0' } };
+const copyBoxStyle = { padding: '12px', background: '#fff', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', marginBottom: '8px', fontSize: '14px' };
 const preStyle = { whiteSpace: 'pre-wrap' as const, background: '#f1f1f1', padding: '15px', borderRadius: '8px', fontSize: '13px', maxHeight: '200px', overflowY: 'auto' as const };
 const btnSmall = { padding: '8px 15px', background: '#eee', border: 'none', borderRadius: '5px', cursor: 'pointer', marginTop: '10px' };
 
