@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const app = express();
 
-// Настройка CORS
+// 1. Настройки CORS (чтобы фронтенд мог достучаться)
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST'],
@@ -13,30 +13,38 @@ app.use(cors({
 
 app.use(express.json());
 
-// Главная страница (проверка работоспособности)
+// 2. Проверка работы сервера (Главная страница)
 app.get('/', (req, res) => {
-    res.send('Сервер готов! Используем стабильную модель 1.5 Flash.');
+    res.send('Сервер готов! Используем стабильную модель Gemini 1.5 Flash.');
 });
 
-// Основной роут для генерации рецепта
+// 3. Основной роут для генерации рецепта
 app.post('/generate', async (req, res) => {
     try {
         const { dish } = req.body;
         const apiKey = process.env.GEMINI_API_KEY;
 
+        // Проверка наличия ключа
         if (!apiKey) {
-            console.error('Ошибка: API Ключ отсутствует!');
-            return res.status(500).json({ error: 'Ключ API не найден в настройках' });
+            console.error("ОШИБКА: Переменная GEMINI_API_KEY не найдена в окружении!");
+            return res.status(500).json({ error: 'Ключ API не настроен на сервере' });
         }
 
-        //const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        if (!dish) {
+            return res.status(400).json({ error: 'Название блюда не указано' });
+        }
 
-        const response = await fetch(url, {
+        console.log(`Запрос на рецепт: ${dish}`);
+
+        // Используем стабильную версию v1
+        const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{
-                    parts: [{ text: `Напиши подробный рецепт блюда: ${dish} на русском языке. Оформи красиво с использованием Markdown.` }]
+                    parts: [{ text: `Напиши подробный рецепт блюда: ${dish} на русском языке. Используй заголовки и списки для красоты.` }]
                 }],
                 generationConfig: {
                     temperature: 0.7,
@@ -47,28 +55,34 @@ app.post('/generate', async (req, res) => {
 
         const data = await response.json();
 
-        // Обработка ошибок от Google (включая квоты)
+        // Проверка ошибок от Google
         if (data.error) {
-            console.error('Google API Error:', data.error.message);
-            return res.status(data.error.code || 500).json({ 
-                error: 'Ошибка Google API', 
-                details: data.error.message 
-            });
+            console.error("Ошибка от Google API:", data.error.message);
+            return res.status(500).json({ error: 'Google API Error', details: data.error.message });
         }
 
-        if (!data.candidates || !data.candidates[0]) {
+        // Проверка структуры ответа
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            console.error("Некорректный ответ от ИИ:", data);
             return res.status(500).json({ error: 'ИИ вернул пустой ответ' });
         }
 
         const recipeText = data.candidates[0].content.parts[0].text;
+        
+        console.log("Рецепт успешно сгенерирован");
         res.json({ recipe: recipeText });
 
     } catch (error) {
-        console.error('Критическая ошибка сервера:', error.message);
-        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+        // Здесь мы выводим ошибку в консоль Render, чтобы ты её видел
+        console.error("Критическая ошибка на сервере:", error.message);
+        res.status(500).json({ 
+            error: 'Внутренняя ошибка сервера', 
+            message: error.message 
+        });
     }
 });
 
+// 4. Запуск сервера
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Сервер запущен на порту ${PORT}`);
