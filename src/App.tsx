@@ -9,7 +9,7 @@ function App() {
     if (!dish) return;
     setLoading(true);
     try {
-      const res = await fetch('https://ТВОЙ-URL-НА-RENDER.com/generate', {
+      const res = await fetch('https://food-content1.onrender.com/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dish })
