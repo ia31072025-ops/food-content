@@ -7,24 +7,21 @@ function App() {
 
   const generate = async () => {
     if (!dish) return;
+    
+    // 1. Очищаем старые данные и включаем загрузку
+    setData(null);
     setLoading(true);
+
     try {
       const res = await fetch('https://food-backend-ai.onrender.com/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dish })
       });
-      
       const result = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(result.error || 'Ошибка сервера');
-      }
-
       setData(result);
-    } catch (e: any) {
-      console.error(e);
-      alert('Ошибка: ' + e.message);
+    } catch (e) {
+      alert('Ошибка связи с сервером');
     } finally {
       setLoading(false);
     }
@@ -32,79 +29,84 @@ function App() {
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('Скопировано в буфер!');
+    alert('Скопировано!');
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '40px auto', padding: '20px', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
-      <header style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <h1 style={{ color: '#FF0000', fontSize: '2.5rem' }}>📺 YT Chef AI</h1>
-        <p style={{ color: '#666' }}>Генератор контента для кулинарных каналов</p>
+    <div style={{ maxWidth: '850px', margin: '40px auto', padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+      <header style={{ textAlign: 'center', marginBottom: '30px' }}>
+        <h1 style={{ color: '#FF0000' }}>🎬 YT Chef AI Pro</h1>
+        <p>Создавай контент для миллионов просмотров</p>
       </header>
       
       <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
         <input 
           type="text" 
-          placeholder="Название блюда (напр. Лазанья)" 
+          placeholder="Название блюда..." 
           value={dish} 
           onChange={e => setDish(e.target.value)} 
-          style={{ flex: 1, padding: '15px', borderRadius: '10px', border: '2px solid #ddd', fontSize: '16px' }} 
+          style={{ flex: 1, padding: '15px', borderRadius: '10px', border: '1px solid #ddd' }} 
         />
         <button 
           onClick={generate} 
           disabled={loading} 
-          style={{ padding: '0 30px', borderRadius: '10px', border: 'none', background: '#FF0000', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
+          style={{ padding: '0 30px', borderRadius: '10px', background: '#FF0000', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
         >
-          {loading ? 'Считаем...' : 'ПОЕХАЛИ!'}
+          {loading ? 'Генерируем...' : 'ПОЕХАЛИ!'}
         </button>
       </div>
 
-      {data && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+      {loading && <div style={{ textAlign: 'center', padding: '50px', fontSize: '20px' }}>⏳ Готовим контент-план...</div>}
+
+      {data && !loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
           
           <section style={cardStyle}>
-            <h2 style={{ color: '#2c3e50', borderBottom: '2px solid #FF0000', paddingBottom: '10px' }}>🍳 Рецепт: {data.recipe?.title}</h2>
-            <p><strong>⏱ Время:</strong> {data.recipe?.time} | <strong>📊 Сложность:</strong> {data.recipe?.difficulty}</p>
-            <p><strong>🛒 Ингредиенты:</strong> {data.recipe?.ingredients?.join(', ')}</p>
-            <div style={{ background: '#fff', padding: '15px', borderRadius: '8px' }}>
-              {data.recipe?.steps?.map((s: string, i: number) => <p key={i}><strong>{i+1}.</strong> {s}</p>)}
-            </div>
+            <h2 style={{ color: '#d32f2f' }}>👨‍🍳 Рецепт: {data.recipe.title}</h2>
+            <p><b>⏱ Время:</b> {data.recipe.time} | <b>🔥 Сложность:</b> {data.recipe.difficulty}</p>
+            <h4>🛒 Ингредиенты:</h4>
+            <ul>{data.recipe.ingredients.map((ing: any, i: number) => <li key={i}>{ing}</li>)}</ul>
+            <h4>📝 Шаги:</h4>
+            {data.recipe.steps.map((s: string, i: number) => <p key={i}><b>{i+1}.</b> {s}</p>)}
           </section>
 
           <section style={cardStyle}>
-            <h2 style={{ color: '#2c3e50' }}>🎥 YouTube Optimization</h2>
-            <p><strong>💡 Заголовки (нажми, чтобы скопировать):</strong></p>
-            {data.youtube?.titles?.map((t: string, i: number) => (
-              <div key={i} onClick={() => copy(t)} style={copyBoxStyle}>{t}</div>
+            <h2 style={{ color: '#1976d2' }}>🎥 YouTube Оптимизация</h2>
+            <h4>📌 Заголовки (клик для копирования):</h4>
+            {data.youtube.titles.map((t: string, i: number) => (
+              <div key={i} onClick={() => copy(t)} style={copyBox}>{t}</div>
             ))}
-            <p><strong>📝 Описание:</strong></p>
-            <pre style={preStyle}>{data.youtube?.description}</pre>
-            <button onClick={() => copy(data.youtube?.description)} style={btnSmall}>Скопировать всё описание</button>
+            <h4>🕒 Тайм-коды:</h4>
+            <div style={preStyle}>{data.youtube.timestamps.join('\n')}</div>
+            <h4>📝 Полное описание:</h4>
+            <pre style={preStyle}>{data.youtube.description}</pre>
+            <button onClick={() => copy(data.youtube.description)} style={btnCopy}>Копировать всё описание</button>
+            <h4>🏷 Теги:</h4>
+            <p style={{ color: '#666', fontSize: '13px' }}>{data.youtube.tags}</p>
           </section>
 
           <section style={cardStyle}>
-            <h2 style={{ color: '#2c3e50' }}>📱 Соцсети</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+            <h2 style={{ color: '#388e3c' }}>📱 Соцсети</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
-                <h4 style={{ color: '#0088cc' }}>Telegram</h4>
-                <div onClick={() => copy(data.social?.telegram)} style={copyBoxStyle}>{data.social?.telegram}</div>
+                <h5>Telegram</h5>
+                <div onClick={() => copy(data.social.telegram)} style={copyBox}>{data.social.telegram}</div>
               </div>
               <div>
-                <h4 style={{ color: '#45668e' }}>ВКонтакте</h4>
-                <div onClick={() => copy(data.social?.vk)} style={copyBoxStyle}>{data.social?.vk}</div>
+                <h5>ВКонтакте</h5>
+                <div onClick={() => copy(data.social.vk)} style={copyBox}>{data.social.vk}</div>
               </div>
             </div>
           </section>
-
         </div>
       )}
     </div>
   );
 }
 
-const cardStyle = { padding: '25px', borderRadius: '15px', background: '#fcfcfc', border: '1px solid #eaeaea', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' };
-const copyBoxStyle = { padding: '12px', background: '#fff', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', marginBottom: '8px', fontSize: '14px' };
-const preStyle = { whiteSpace: 'pre-wrap' as const, background: '#f1f1f1', padding: '15px', borderRadius: '8px', fontSize: '13px', maxHeight: '200px', overflowY: 'auto' as const };
-const btnSmall = { padding: '8px 15px', background: '#eee', border: 'none', borderRadius: '5px', cursor: 'pointer', marginTop: '10px' };
+const cardStyle = { padding: '25px', borderRadius: '15px', background: '#fff', border: '1px solid #eee', boxShadow: '0 5px 15px rgba(0,0,0,0.05)' };
+const copyBox = { padding: '12px', background: '#f9f9f9', border: '1px dashed #ccc', borderRadius: '8px', cursor: 'pointer', marginBottom: '10px', fontSize: '14px' };
+const preStyle = { whiteSpace: 'pre-wrap' as const, background: '#f5f5f5', padding: '15px', borderRadius: '8px', fontSize: '14px', marginBottom: '10px' };
+const btnCopy = { padding: '10px 15px', background: '#1976d2', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' };
 
 export default App;
