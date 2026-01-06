@@ -8,7 +8,7 @@ function App() {
   const generate = async () => {
     if (!dish) return;
     
-    // 1. Очищаем старые данные и включаем загрузку
+    // Очищаем экран от старого рецепта
     setData(null);
     setLoading(true);
 
@@ -21,7 +21,7 @@ function App() {
       const result = await res.json();
       setData(result);
     } catch (e) {
-      alert('Ошибка связи с сервером');
+      alert('Ошибка связи с сервером. Проверьте логи на Render.');
     } finally {
       setLoading(false);
     }
@@ -29,60 +29,63 @@ function App() {
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('Скопировано!');
+    alert('Скопировано в буфер!');
   };
 
   return (
-    <div style={{ maxWidth: '850px', margin: '40px auto', padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <header style={{ textAlign: 'center', marginBottom: '30px' }}>
-        <h1 style={{ color: '#FF0000' }}>🎬 YT Chef AI Pro</h1>
-        <p>Создавай контент для миллионов просмотров</p>
+    <div style={{ maxWidth: '900px', margin: '40px auto', padding: '20px', fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#f9f9f9', borderRadius: '20px' }}>
+      <header style={{ textAlign: 'center', marginBottom: '40px' }}>
+        <h1 style={{ color: '#FF0000', fontSize: '3rem', marginBottom: '10px' }}>📺 YT Chef PRO</h1>
+        <p style={{ color: '#555' }}>Генератор профессионального контента по стандартам 2026 года</p>
       </header>
       
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
+      <div style={{ display: 'flex', gap: '15px', marginBottom: '40px' }}>
         <input 
           type="text" 
-          placeholder="Название блюда..." 
+          placeholder="Какое блюдо готовим? (например: Лазанья Болоньезе)" 
           value={dish} 
           onChange={e => setDish(e.target.value)} 
-          style={{ flex: 1, padding: '15px', borderRadius: '10px', border: '1px solid #ddd' }} 
+          style={{ flex: 1, padding: '18px', borderRadius: '12px', border: '2px solid #ddd', fontSize: '18px' }} 
         />
         <button 
           onClick={generate} 
           disabled={loading} 
-          style={{ padding: '0 30px', borderRadius: '10px', background: '#FF0000', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+          style={{ padding: '0 35px', borderRadius: '12px', background: '#FF0000', color: '#fff', fontSize: '18px', fontWeight: 'bold', border: 'none', cursor: 'pointer', transition: '0.3s' }}
         >
-          {loading ? 'Генерируем...' : 'ПОЕХАЛИ!'}
+          {loading ? 'Создаем шедевр...' : 'ПОЕХАЛИ!'}
         </button>
       </div>
 
-      {loading && <div style={{ textAlign: 'center', padding: '50px', fontSize: '20px' }}>⏳ Готовим контент-план...</div>}
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <div style={{ fontSize: '24px', marginBottom: '10px' }}>⏳</div>
+          <p>Шеф-повар прорабатывает рецепт и SEO-стратегию...</p>
+        </div>
+      )}
 
       {data && !loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
           
           <section style={cardStyle}>
             <h2 style={{ color: '#d32f2f' }}>👨‍🍳 Рецепт: {data.recipe.title}</h2>
-            <p><b>⏱ Время:</b> {data.recipe.time} | <b>🔥 Сложность:</b> {data.recipe.difficulty}</p>
-            <h4>🛒 Ингредиенты:</h4>
-            <ul>{data.recipe.ingredients.map((ing: any, i: number) => <li key={i}>{ing}</li>)}</ul>
-            <h4>📝 Шаги:</h4>
-            {data.recipe.steps.map((s: string, i: number) => <p key={i}><b>{i+1}.</b> {s}</p>)}
+            <p><b>⏱ Время:</b> {data.recipe.time} | <b>📊 Сложность:</b> {data.recipe.difficulty}</p>
+            <h3>🛒 Ингредиенты:</h3>
+            <ul>{data.recipe.ingredients.map((ing: string, i: number) => <li key={i}>{ing}</li>)}</ul>
+            <h3>📝 Пошаговое приготовление:</h3>
+            {data.recipe.steps.map((s: string, i: number) => <p key={i} style={{ marginBottom: '10px' }}><b>{i+1}.</b> {s}</p>)}
           </section>
 
           <section style={cardStyle}>
             <h2 style={{ color: '#1976d2' }}>🎥 YouTube Оптимизация</h2>
-            <h4>📌 Заголовки (клик для копирования):</h4>
+            <h4>📌 Лучшие заголовки (кликните, чтобы скопировать):</h4>
             {data.youtube.titles.map((t: string, i: number) => (
               <div key={i} onClick={() => copy(t)} style={copyBox}>{t}</div>
             ))}
             <h4>🕒 Тайм-коды:</h4>
-            <div style={preStyle}>{data.youtube.timestamps.join('\n')}</div>
-            <h4>📝 Полное описание:</h4>
-            <pre style={preStyle}>{data.youtube.description}</pre>
-            <button onClick={() => copy(data.youtube.description)} style={btnCopy}>Копировать всё описание</button>
-            <h4>🏷 Теги:</h4>
-            <p style={{ color: '#666', fontSize: '13px' }}>{data.youtube.tags}</p>
+            <div style={preBox}>{data.youtube.timestamps.join('\n')}</div>
+            <h4>📝 SEO Описание:</h4>
+            <pre style={preBox}>{data.youtube.description}</pre>
+            <button onClick={() => copy(data.youtube.description)} style={btnPrimary}>Скопировать описание целиком</button>
           </section>
 
           <section style={cardStyle}>
@@ -104,9 +107,9 @@ function App() {
   );
 }
 
-const cardStyle = { padding: '25px', borderRadius: '15px', background: '#fff', border: '1px solid #eee', boxShadow: '0 5px 15px rgba(0,0,0,0.05)' };
-const copyBox = { padding: '12px', background: '#f9f9f9', border: '1px dashed #ccc', borderRadius: '8px', cursor: 'pointer', marginBottom: '10px', fontSize: '14px' };
-const preStyle = { whiteSpace: 'pre-wrap' as const, background: '#f5f5f5', padding: '15px', borderRadius: '8px', fontSize: '14px', marginBottom: '10px' };
-const btnCopy = { padding: '10px 15px', background: '#1976d2', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' };
+const cardStyle = { padding: '30px', borderRadius: '15px', background: '#fff', border: '1px solid #eee', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' };
+const copyBox = { padding: '15px', background: '#f8f9fa', border: '1px dashed #007bff', borderRadius: '8px', cursor: 'pointer', marginBottom: '10px', fontSize: '15px' };
+const preBox = { whiteSpace: 'pre-wrap' as const, background: '#f1f3f5', padding: '20px', borderRadius: '10px', fontSize: '14px', lineHeight: '1.6', color: '#333' };
+const btnPrimary = { padding: '12px 20px', background: '#1976d2', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' };
 
 export default App;
