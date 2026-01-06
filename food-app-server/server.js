@@ -11,34 +11,38 @@ app.post('/generate', async (req, res) => {
         const { dish } = req.body;
         const apiKey = process.env.OPENAI_API_KEY;
 
-        if (!apiKey) return res.status(500).json({ error: 'Сервер не настроен: отсутствует API Key' });
+        const prompt = `Ты — элитный YouTube-SEO специалист и шеф-повар.
+        Создай профессиональное оформление для видео: "${dish}".
+        
+        ТРЕБОВАНИЯ К КОНТЕНТУ:
+        1. Рецепт: Только КЛАССИЧЕСКИЙ и ПОЛНЫЙ (никаких упрощений, если это не указано). Минимум 7-10 детальных шагов.
+        2. SEO-Описание: Объем 300-500 слов. Используй LSI-ключи, опиши текстуру, вкус и аромат блюда. В начале — мощное вступление для удержания.
+        3. Заголовки: 5 вариантов с высоким CTR, комбинируй "Как приготовить" и эмоциональные триггеры.
+        4. Таймкоды: Детальные, привязанные к конкретным процессам (например: "02:15 - Замешиваем тесто", а не просто "Приготовление").
+        5. Теги и Ключи: Глубокая проработка (25-30 тегов).
+        6. Формат: Строгий JSON.
 
-        // ТВОЙ УЛУЧШЕННЫЙ ПРОМПТ
-        const prompt = `Ты — профессиональный YouTube-SEO специалист и фуд-блогер. 
-        Создай полное SEO-оформление для видео с рецептом: "${dish}".
-        Цель — максимальные просмотры, высокий CTR и попадание в поиск YouTube и Google 2026.
-        Стиль: вкусно, понятно, дружелюбно, профессионально.
-
-        Верни ответ СТРОГО в формате JSON с этой структурой:
+        JSON СТРУКТУРА:
         {
           "recipe": {
-            "title": "Название блюда",
-            "time": "Время приготовления",
+            "title": "Полное название",
+            "time": "Время",
             "difficulty": "Сложность",
-            "ingredients": ["Список с граммовками"],
-            "steps": ["Пошаговый процесс (не менее 7 шагов)"]
+            "ingredients": ["Список с мерами веса"],
+            "steps": ["Детальные шаги"]
           },
           "youtube": {
-            "titles": ["5 SEO-названий до 60 символов, с ключевыми словами, без кликбейта"],
-            "description": "Полное SEO-описание (200–400 слов) с ключевыми словами в первых 2 строках, ингредиентами, шагами и призывами.",
-            "timestamps": ["0:00 – Вступление", "0:30 – Ингредиенты", "01:20 – Приготовление", "05:40 – Результат"],
-            "tags": ["20-30 SEO-тегов: высоко-, средне- и низкочастотные через запятую"],
-            "hashtags": ["15 тематических хэштегов через пробел"]
+            "titles": ["Список названий"],
+            "description": "Огромный SEO-текст с абзацами",
+            "timestamps": ["Список таймкодов"],
+            "tags": ["Список тегов через запятую"],
+            "hashtags": ["Список хэштегов"]
           },
           "social": {
-            "telegram": "Интригующий пост для ТГ с эмодзи",
-            "vk": "Полезный лонгрид для ВК"
-          }
+            "telegram": "Пост с эмодзи",
+            "vk": "Пост-лонгрид"
+          },
+          "keywords": "Ключевые слова через запятую"
         }`;
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -48,32 +52,26 @@ app.post('/generate', async (req, res) => {
                 'Authorization': `Bearer ${apiKey.trim()}`
             },
             body: JSON.stringify({
-                model: "gpt-4o-mini",
+                model: "gpt-4o-mini", // Эта модель отлично справляется с длинными текстами
                 messages: [
-                    { role: "system", content: "Ты — лучший SEO-эксперт в кулинарной нише. Твоя задача — сделать контент виральным." },
+                    { 
+                        role: "system", 
+                        content: "Ты — профессиональный фуд-блогер. Ты пишешь экспертно, подробно и вкусно. Твоя цель — вывести видео в ТОП-1 поиска." 
+                    },
                     { role: "user", content: prompt }
                 ],
                 response_format: { type: "json_object" },
-                temperature: 0.8
+                temperature: 0.7 // Оптимально для баланса между точностью рецепта и креативностью текста
             })
         });
 
         const data = await response.json();
-        
-        if (!response.ok) {
-            console.error("OpenAI Error:", data);
-            return res.status(response.status).json({ error: data.error.message });
-        }
-
-        // Парсим контент из ответа OpenAI
-        const finalContent = JSON.parse(data.choices[0].message.content);
-        res.json(finalContent);
+        res.json(JSON.parse(data.choices[0].message.content));
 
     } catch (error) {
-        console.error("Critical Server Error:", error);
-        res.status(500).json({ error: 'Ошибка сервера при связи с ИИ' });
+        res.status(500).json({ error: 'Ошибка генерации' });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`SEO Server is running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`SEO Server Live`));
