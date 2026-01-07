@@ -11,24 +11,26 @@ app.post('/generate', async (req, res) => {
         const { dish, type, level, channelFormat, additional } = req.body;
         const apiKey = process.env.OPENAI_API_KEY;
 
-        const prompt = `Ты — топовый YouTube-продюсер и шеф-повар 2026.
-        СОЗДАЙ КОНТЕНТ ДЛЯ: "${dish}".
-        
-        ТРЕБОВАНИЯ К ОПИСАНИЮ:
-        1. Длина: 600+ слов.
-        2. ТАЙМКОДЫ: Обязательно в формате:
-           00:00-00:15 — Вступление и презентация блюда
-           00:15-00:45 — Список ингредиентов и их выбор
-           00:45-02:30 — (и так далее до конца процесса)
-        3. Содержание: История блюда, советы по подаче, химия процессов.
+        const prompt = `
+        Ты — элитный шеф-повар и ТОП-YouTube-SEO специалист 2026.
+        Создай полный контент-пакет для блюда "${dish}".
 
-        ТРЕБОВАНИЯ К РЕЦЕПТУ:
-        - Никаких полуфабрикатов. Тесто, соусы — всё с нуля.
-        - Минимум 12 пошаговых этапов.
+        ПАРАМЕТРЫ:
+        - Тип: "${type}", Сложность: "${level}", Формат: "${channelFormat}", Доп: "${additional}"
+
+        🛑 КАЧЕСТВО:
+        1. Рецепт с нуля (тесто, соусы — только база). Минимум 12 шагов с t°C и минутами.
+        2. ПРАВИЛО ПЕЧЕНЬЯ: Если блюдо требует выпечки (торт) — пеки с нуля. Если классика (Тирамису) или указано "без выпечки" — используй печенье.
+
+        ✅ SEO YouTube 2026:
+        1. ЗАГОЛОВКИ: 5 вариантов.
+        2. ОПИСАНИЕ: 400-600 слов. ОБЯЗАТЕЛЬНО ТАЙМКОДЫ (00:00-00:15 Вступление, 00:15-00:45 Ингредиенты и т.д.).
+        3. ПОСТЫ: Для Telegram (с эмодзи) и VK (лонгрид).
+        4. ТЕГИ: 30-40 шт. ХЭШТЕГИ: 15-20 шт.
 
         ОТВЕТЬ СТРОГО В JSON:
         {
-          "recipe": { "title": "Название", "time": "Время", "difficulty": "Сложность", "ingredients": ["..."], "steps": ["..."] },
+          "recipe": { "title": "...", "time": "...", "difficulty": "...", "ingredients": ["..."], "steps": ["..."] },
           "youtube": { "titles": ["..."], "description": "...", "tags": "...", "hashtags": "..." },
           "social": { "telegram": "...", "vk": "..." }
         }`;
@@ -38,7 +40,7 @@ app.post('/generate', async (req, res) => {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey.trim()}` },
             body: JSON.stringify({
                 model: "gpt-4o-mini",
-                messages: [{ role: "system", content: "Ты — профессиональный фуд-блогер." }, { role: "user", content: prompt }],
+                messages: [{ role: "system", content: "Профессиональный AI-ассистент фуд-блогеров." }, { role: "user", content: prompt }],
                 response_format: { type: "json_object" }
             })
         });
@@ -46,9 +48,9 @@ app.post('/generate', async (req, res) => {
         const data = await response.json();
         res.json(JSON.parse(data.choices[0].message.content));
     } catch (error) {
-        res.status(500).json({ error: 'Ошибка сервера' });
+        res.status(500).json({ error: error.message });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log('Backend Live'));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
