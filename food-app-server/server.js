@@ -8,45 +8,37 @@ app.use(express.json());
 
 app.post('/generate', async (req, res) => {
     try {
-        const { dish, type, additional } = req.body;
-        const apiKey = process.env.OPENAI_API_KEY;
-
-        const systemRole = `Ты — профессиональный помощник фуд-блогера, SEO-специалист YouTube, сценарист и SMM-редактор. 
-        Твоя цель — создавать контент-пакеты по 10 пунктам: 
-        1. SEO-описание (500+ слов, ключевые слова). 
-        2. Тайм-коды (00:00-00:15 и т.д.). 
-        3. 3 варианта названий. 
-        4. 30 Тегов. 
-        5. Сценарий видео (Хук, Визуал). 
-        6. Сценарий Shorts. 
-        7. Пост Telegram. 
-        8. Пост VK. 
-        9. Полный рецепт (с учетом правок: без сахара/ПП и т.д.). 
-        10. КБЖУ.`;
-
-        const userPrompt = `Объект: "${dish}". Формат: ${type}. Пожелания: ${additional}. 
-        Если дана ссылка — проанализируй её (имитируй анализ по названию/контексту) и выдай полный пакет.`;
+        const { dish, additional } = req.body;
+        const prompt = `Ты — эксперт YouTube. Создай контент-пакет для "${dish}". 
+        Доп. условия: ${additional}.
+        ОБЯЗАТЕЛЬНО: 
+        1. Описание 500 слов с ТАЙМ-КОДАМИ (00:00-00:15 и т.д.). 
+        2. Рецепт (ингредиенты и шаги). 
+        3. Посты для Telegram и VK.
+        
+        ОТВЕТЬ ТОЛЬКО В JSON:
+        {
+          "title": "Название блюда",
+          "recipe": { "ingredients": ["..."], "steps": ["..."] },
+          "youtube": { "description": "ОПИСАНИЕ С ТАЙМКОДАМИ", "tags": "теги" },
+          "social": { "telegram": "текст", "vk": "текст" }
+        }`;
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey.trim()}` },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
             body: JSON.stringify({
                 model: "gpt-4o-mini",
-                messages: [
-                    { role: "system", content: systemRole },
-                    { role: "user", content: userPrompt }
-                ],
-                response_format: { type: "json_object" },
-                temperature: 0.7
+                messages: [{ role: "user", content: prompt }],
+                response_format: { type: "json_object" }
             })
         });
 
         const data = await response.json();
         res.json(JSON.parse(data.choices[0].message.content));
     } catch (error) {
-        res.status(500).json({ error: 'Ошибка генерации контента' });
+        res.status(500).json({ error: "Ошибка ИИ" });
     }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log('Chef AI Engine 3.6 Active'));
+app.listen(10000, '0.0.0.0');
