@@ -8,49 +8,45 @@ app.use(express.json());
 
 app.post('/generate', async (req, res) => {
     try {
-        const { dish, type, level, channelFormat, additional } = req.body;
+        const { dish, type, additional } = req.body;
         const apiKey = process.env.OPENAI_API_KEY;
 
-        const prompt = `
-        Ты — элитный шеф-повар и ТОП-YouTube-SEO специалист 2026.
-        Создай полный контент-пакет для блюда "${dish}".
+        const systemRole = `Ты — профессиональный помощник фуд-блогера, SEO-специалист YouTube, сценарист и SMM-редактор. 
+        Твоя цель — создавать контент-пакеты по 10 пунктам: 
+        1. SEO-описание (500+ слов, ключевые слова). 
+        2. Тайм-коды (00:00-00:15 и т.д.). 
+        3. 3 варианта названий. 
+        4. 30 Тегов. 
+        5. Сценарий видео (Хук, Визуал). 
+        6. Сценарий Shorts. 
+        7. Пост Telegram. 
+        8. Пост VK. 
+        9. Полный рецепт (с учетом правок: без сахара/ПП и т.д.). 
+        10. КБЖУ.`;
 
-        ПАРАМЕТРЫ:
-        - Тип: "${type}", Сложность: "${level}", Формат: "${channelFormat}", Доп: "${additional}"
-
-        🛑 КАЧЕСТВО:
-        1. Рецепт с нуля (тесто, соусы — только база). Минимум 12 шагов с t°C и минутами.
-        2. ПРАВИЛО ПЕЧЕНЬЯ: Если блюдо требует выпечки (торт) — пеки с нуля. Если классика (Тирамису) или указано "без выпечки" — используй печенье.
-
-        ✅ SEO YouTube 2026:
-        1. ЗАГОЛОВКИ: 5 вариантов.
-        2. ОПИСАНИЕ: 400-600 слов. ОБЯЗАТЕЛЬНО ТАЙМКОДЫ (00:00-00:15 Вступление, 00:15-00:45 Ингредиенты и т.д.).
-        3. ПОСТЫ: Для Telegram (с эмодзи) и VK (лонгрид).
-        4. ТЕГИ: 30-40 шт. ХЭШТЕГИ: 15-20 шт.
-
-        ОТВЕТЬ СТРОГО В JSON:
-        {
-          "recipe": { "title": "...", "time": "...", "difficulty": "...", "ingredients": ["..."], "steps": ["..."] },
-          "youtube": { "titles": ["..."], "description": "...", "tags": "...", "hashtags": "..." },
-          "social": { "telegram": "...", "vk": "..." }
-        }`;
+        const userPrompt = `Объект: "${dish}". Формат: ${type}. Пожелания: ${additional}. 
+        Если дана ссылка — проанализируй её (имитируй анализ по названию/контексту) и выдай полный пакет.`;
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey.trim()}` },
             body: JSON.stringify({
                 model: "gpt-4o-mini",
-                messages: [{ role: "system", content: "Профессиональный AI-ассистент фуд-блогеров." }, { role: "user", content: prompt }],
-                response_format: { type: "json_object" }
+                messages: [
+                    { role: "system", content: systemRole },
+                    { role: "user", content: userPrompt }
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.7
             })
         });
 
         const data = await response.json();
         res.json(JSON.parse(data.choices[0].message.content));
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Ошибка генерации контента' });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log('Chef AI Engine 3.6 Active'));

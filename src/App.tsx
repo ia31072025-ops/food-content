@@ -1,135 +1,139 @@
 import React, { useState, useEffect } from 'react';
 
 function App() {
-  const [dish, setDish] = useState('');
-  const [type, setType] = useState('Длинное видео');
+  const [input, setInput] = useState(''); // Сюда пишем блюдо ИЛИ ссылку
   const [extra, setExtra] = useState('');
-  const [data, setData] = useState<any>(null); // Текущие активные данные
+  const [type, setType] = useState('видео + shorts');
   const [loading, setLoading] = useState(false);
-  const [notebook, setNotebook] = useState<any[]>([]); // Архив
+  const [activeData, setActiveData] = useState<any>(null);
+  const [notebook, setNotebook] = useState<any[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('yt_chef_vault_35');
+    const saved = localStorage.getItem('food_blogger_vault_v3.6');
     if (saved) setNotebook(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('yt_chef_vault_35', JSON.stringify(notebook));
+    localStorage.setItem('food_blogger_vault_v3.6', JSON.stringify(notebook));
   }, [notebook]);
 
   const generate = async () => {
-    if (!dish) return;
-    setData(null); setLoading(true);
+    if (!input) return;
+    setLoading(true); setActiveData(null);
     try {
       const res = await fetch('https://food-backend-ai.onrender.com/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dish, type, additional: extra })
+        body: JSON.stringify({ dish: input, type, additional: extra })
       });
       const result = await res.json();
-      setData(result);
-    } catch (e) { alert('Ошибка связи с сервером'); } finally { setLoading(false); }
+      setActiveData(result);
+    } catch (e) { alert('Ошибка! Проверь интернет или API'); } 
+    finally { setLoading(false); }
   };
 
-  const saveToNotebook = () => {
-    if (!data) return;
-    const link = (document.getElementById('yt_url') as HTMLInputElement).value;
-    const newEntry = {
-      id: Date.now(),
-      title: data.recipe.title,
-      content: data, // Сохраняем ВЕСЬ объект
-      link: link,
-      date: new Date().toLocaleDateString()
-    };
-    setNotebook([newEntry, ...notebook]);
-    alert('Сохранено в Блокнот!');
+  const saveNote = () => {
+    if (!activeData) return;
+    const newNote = { id: Date.now(), title: activeData.recipe.title, fullData: activeData, date: new Date().toLocaleDateString() };
+    setNotebook([newNote, ...notebook]);
+    alert('Контент-пакет сохранен в блокнот!');
   };
-
-  const copy = (text: string) => { navigator.clipboard.writeText(text); alert('Скопировано!'); };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#fcfcfc', fontFamily: 'Segoe UI, sans-serif' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f8f9fa' }}>
       
-      {/* ЛЕВАЯ ПАНЕЛЬ: БЛОКНОТ */}
-      <div style={{ width: '320px', background: '#fff', borderRight: '1px solid #eee', padding: '20px', overflowY: 'auto' }}>
-        <h2 style={{ color: '#FF0000', borderBottom: '2px solid #FF0000', paddingBottom: '10px' }}>📒 Архив Рецептов</h2>
-        {notebook.map(item => (
-          <div 
-            key={item.id} 
-            onClick={() => setData(item.content)} 
-            style={{ padding: '15px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', cursor: 'pointer', background: data?.recipe.title === item.title ? '#fff5f5' : '#fff' }}
-          >
-            <strong style={{ display: 'block' }}>{item.title}</strong>
-            <small style={{ color: '#888' }}>{item.date} {item.link && '🔗'}</small>
-            <button onClick={(e) => { e.stopPropagation(); setNotebook(notebook.filter(x => x.id !== item.id)); }} style={{ float: 'right', border: 'none', background: 'none', color: '#ccc', cursor: 'pointer' }}>×</button>
+      {/* ЛЕВАЯ ПАНЕЛЬ: АРХИВ (Notebook) */}
+      <div style={{ width: '350px', background: '#fff', borderRight: '1px solid #ddd', padding: '20px', overflowY: 'auto' }}>
+        <h2 style={{ color: '#FF0000' }}>📒 Блокнот 3.6</h2>
+        <p style={{ fontSize: '12px', color: '#666' }}>Нажми на рецепт, чтобы открыть полный пакет продвижения</p>
+        {notebook.map(n => (
+          <div key={n.id} onClick={() => setActiveData(n.fullData)} style={noteStyle(activeData?.recipe.title === n.title)}>
+            <strong>{n.title}</strong><br/>
+            <small>{n.date}</small>
+            <button onClick={(e) => { e.stopPropagation(); setNotebook(notebook.filter(x => x.id !== n.id)); }} style={delBtn}>×</button>
           </div>
         ))}
       </div>
 
-      {/* ПРАВАЯ ПАНЕЛЬ: РАБОЧАЯ ЗОНА */}
-      <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
-        <div style={{ maxWidth: '900px', margin: 'auto' }}>
-          <header style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h1 style={{ fontSize: '2.5rem', color: '#333' }}>🎥 YT Chef <span style={{ color: 'red' }}>PRO 3.5</span></h1>
-          </header>
-
-          <div style={cardStyle}>
-            <input placeholder="Название блюда..." value={dish} onChange={e => setDish(e.target.value)} style={inputStyle} />
-            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-              <select value={type} onChange={e => setType(e.target.value)} style={selectStyle}>
-                <option>Длинное видео</option><option>Shorts / Reels</option>
-              </select>
-              <input placeholder="Доп. условия (без сахара, веган...)" value={extra} onChange={e => setExtra(e.target.value)} style={inputStyle} />
-            </div>
-            <button onClick={generate} disabled={loading} style={mainBtn}>{loading ? 'Генерация...' : 'СОЗДАТЬ КОНТЕНТ-ПАКЕТ'}</button>
+      {/* ПРАВАЯ ПАНЕЛЬ: РАБОЧЕЕ ПРОСТРАНСТВО */}
+      <div style={{ flex: 1, padding: '30px', overflowY: 'auto' }}>
+        <div style={cardStyle}>
+          <h1 style={{ textAlign: 'center', marginBottom: '20px' }}>🍎 Помощник фуд-блогера PRO</h1>
+          
+          <input 
+            placeholder="Введите название блюда ИЛИ ссылку на YouTube..." 
+            value={input} onChange={e => setInput(e.target.value)} 
+            style={inputStyle} 
+          />
+          
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+            <select value={type} onChange={e => setType(e.target.value)} style={selectStyle}>
+              <option>видео + shorts</option><option>только видео</option><option>только shorts</option>
+            </select>
+            <input 
+              placeholder="ПП, без сахара, веган, добавить чеснок..." 
+              value={extra} onChange={e => setExtra(e.target.value)} 
+              style={inputStyle} 
+            />
           </div>
 
-          {data && (
-            <div style={{ marginTop: '30px' }}>
-              <div style={{ ...cardStyle, backgroundColor: '#f0f7ff', border: '1px solid #007bff' }}>
-                <h4 style={{ marginTop: 0 }}>📥 Сохранить этот результат?</h4>
-                <input id="yt_url" placeholder="Ссылка на готовое видео YouTube (необязательно)" style={inputStyle} />
-                <button onClick={saveToNotebook} style={{ ...mainBtn, background: '#28a745', marginTop: '10px' }}>ДОБАВИТЬ В БЛОКНОТ</button>
+          <button onClick={generate} disabled={loading} style={mainBtn}>
+            {loading ? 'Идет анализ и SEO-генерация...' : 'СФОРМИРОВАТЬ КОНТЕНТ-ПАКЕТ'}
+          </button>
+        </div>
+
+        {activeData && (
+          <div style={{ marginTop: '30px' }}>
+            <button onClick={saveNote} style={saveBtn}>💾 СОХРАНИТЬ ВЕСЬ ПАКЕТ В БЛОКНОТ</button>
+
+            <div style={cardStyle}>
+              <h2 style={{ color: '#d32f2f' }}>{activeData.recipe.title}</h2>
+              
+              <div style={tabGrid}>
+                <section>
+                  <h3>📖 Рецепт & КБЖУ</h3>
+                  <ul>{activeData.recipe.ingredients.map((ing: any, i: number) => <li key={i}>{ing}</li>)}</ul>
+                  {activeData.recipe.steps.map((s: any, i: number) => <p key={i}><b>{i+1}.</b> {s}</p>)}
+                </section>
+
+                <section>
+                  <h3>📈 YouTube SEO</h3>
+                  <p><strong>Тайм-коды:</strong></p>
+                  <pre style={preStyle}>{activeData.youtube.description}</pre>
+                  <p><strong>Теги:</strong> {activeData.youtube.tags}</p>
+                </section>
               </div>
 
-              <div style={cardStyle}>
-                <h2 style={{ color: '#d32f2f' }}>{data.recipe.title}</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  <section>
-                    <h3>🛒 Ингредиенты:</h3>
-                    <ul>{data.recipe.ingredients.map((ing: any, i: number) => <li key={i}>{ing}</li>)}</ul>
-                  </section>
-                  <section>
-                    <h3>📝 Инструкция:</h3>
-                    {data.recipe.steps.map((s: any, i: number) => <p key={i}><b>{i+1}.</b> {s}</p>)}
-                  </section>
-                </div>
-
-                <hr style={{ margin: '30px 0', opacity: 0.2 }} />
-
-                <h3 style={{ color: '#1976d2' }}>📺 YouTube SEO Описание:</h3>
-                <pre style={preBox}>{data.youtube.description}</pre>
-                <button onClick={() => copy(data.youtube.description)} style={copyBtn}>Копировать всё описание</button>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
-                  <div style={socialBox}><h4>✈️ Telegram Post</h4>{data.social.telegram}</div>
-                  <div style={socialBox}><h4>💙 VK Post</h4>{data.social.vk}</div>
-                </div>
+              <div style={tabGrid}>
+                <section style={socialStyle}>
+                  <h3>✈️ Telegram & VK</h3>
+                  <p><b>TG:</b> {activeData.social.telegram}</p>
+                  <hr/>
+                  <p><b>VK:</b> {activeData.social.vk}</p>
+                </section>
+                <section style={{ ...socialStyle, background: '#fff8e1' }}>
+                  <h3>🎬 Сценарий Shorts</h3>
+                  <pre style={preStyle}>{activeData.youtube.shorts_script || "Динамичный сценарий готов!"}</pre>
+                </section>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-const cardStyle = { background: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 8px 30px rgba(0,0,0,0.05)', marginBottom: '20px' };
-const inputStyle = { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', boxSizing: 'border-box' as any };
-const selectStyle = { padding: '12px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff' };
-const mainBtn = { width: '100%', padding: '15px', background: 'red', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' };
-const preBox = { whiteSpace: 'pre-wrap' as any, background: '#f8f9fa', padding: '20px', borderRadius: '12px', fontSize: '14px', border: '1px solid #eee' };
-const copyBtn = { padding: '10px 20px', background: '#1976d2', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', marginTop: '10px' };
-const socialBox = { background: '#f1f3f5', padding: '15px', borderRadius: '12px', fontSize: '13px' };
+// Стили
+const cardStyle = { background: '#fff', padding: '30px', borderRadius: '15px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' };
+const inputStyle = { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', boxSizing: 'border-box' as any };
+const selectStyle = { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', background: '#fff' };
+const mainBtn = { width: '100%', padding: '15px', background: '#d32f2f', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', marginTop: '15px', cursor: 'pointer' };
+const saveBtn = { width: '100%', padding: '12px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: '8px', marginBottom: '15px', cursor: 'pointer' };
+const noteStyle = (act: boolean) => ({ padding: '15px', borderRadius: '10px', border: '1px solid #eee', marginBottom: '10px', cursor: 'pointer', background: act ? '#fff5f5' : '#fff', position: 'relative' as any });
+const tabGrid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' };
+const preStyle = { whiteSpace: 'pre-wrap' as any, background: '#f9f9f9', padding: '15px', borderRadius: '8px', fontSize: '13px' };
+const socialStyle = { background: '#e3f2fd', padding: '20px', borderRadius: '12px' };
+const delBtn = { position: 'absolute' as any, right: '10px', top: '10px', background: 'none', border: 'none', color: '#ccc', cursor: 'pointer' };
 
 export default App;
