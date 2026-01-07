@@ -12,14 +12,15 @@ app.post('/generate', async (req, res) => {
         const apiKey = process.env.OPENAI_API_KEY;
 
         const prompt = `Ты — элитный шеф-повар и эксперт по YouTube-SEO 2026.
-        БЛЮДО: "${dish}". ТИП: "${type}". СЛОЖНОСТЬ: "${level}". ДОП: "${additional}".
+        СОЗДАЙ КОНТЕНТ ДЛЯ: "${dish}". ТИП: "${type}". СЛОЖНОСТЬ: "${level}". ДОП: "${additional}".
 
-        ПРАВИЛА:
-        - Никакой лени: если блюдо требует теста — печем сами. Если печенье классика (Тирамису) — используем его.
-        - Описание: 400+ слов, сочное, с ключами и CTA.
-        - Шаги: Минимум 10 детальных шагов с градусами и минутами.
+        🛑 ТЕХНИЧЕСКИЙ КОНТРОЛЬ:
+        - Никакого покупного печенья/коржей, если это не классика (как Савоярди в Тирамису).
+        - Если блюдо требует теста — рецепт начинается с замеса теста с нуля.
+        - Рецепт: Минимум 10 детальных шагов с указанием температуры и времени.
+        - SEO: Описание 400-600 слов, сочное, с ключами и CTA.
 
-        ОТВЕТЬ В JSON:
+        ОТВЕТЬ СТРОГО В JSON:
         {
           "recipe": { "title": "Название", "time": "Время", "difficulty": "Сложность", "ingredients": ["Список"], "steps": ["Шаги"] },
           "youtube": { "titles": ["5 заголовков"], "description": "SEO текст", "timestamps": ["0:00 - ..."], "tags": "теги", "hashtags": "хэштеги" },
@@ -31,7 +32,7 @@ app.post('/generate', async (req, res) => {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey.trim()}` },
             body: JSON.stringify({
                 model: "gpt-4o-mini",
-                messages: [{ role: "system", content: "Ты профи." }, { role: "user", content: prompt }],
+                messages: [{ role: "system", content: "Ты — профессиональный фуд-блогер." }, { role: "user", content: prompt }],
                 response_format: { type: "json_object" },
                 temperature: 0.7
             })
