@@ -1,130 +1,174 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 
-interface GeneratedContent {
-    SEO_DESCRIPTION: string;
-    TIMECODES: string;
-    YOUTUBE_TITLES: string[];
-    TAGS: string[];
-    VIDEO_SCRIPT: string;
-    SHORTS_SCRIPT: string;
-    SOCIAL_POSTS: { Telegram: string; VK: string; };
-    title?: string; // Добавим для заголовка в блокноте
-}
+function App() {
+  const [dish, setDish] = useState('');
+  const [type, setType] = useState('Длинное видео');
+  const [level, setLevel] = useState('Средний');
+  const [format, setFormat] = useState('Домашняя кухня');
+  const [extra, setExtra] = useState('');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
-const API_URL = 'https://food-backend-ai.onrender.com/api/generate'; // Замени на свой URL на Render
+  const handleTagClick = (tag: string) => {
+    setExtra(prev => prev.includes(tag) ? prev : (prev ? `${prev}, ${tag}` : tag));
+  };
 
-const RecipeGenerator: React.FC = () => {
-  const [recipeName, setRecipeName] = useState('');
-  const [format, setFormat] = useState('видео');
-  const [wishes, setWishes] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Главные состояния
-  const [result, setResult] = useState<GeneratedContent | null>(null);
-  const [notebook, setNotebook] = useState<GeneratedContent[]>([]);
+  const generate = async () => {
+    if (!dish) return;
+    setData(null);
+    setLoading(true);
 
-  // 1. Загрузка блокнота при старте
-  useEffect(() => {
-    const saved = localStorage.getItem('food_blogger_notes');
-    if (saved) setNotebook(JSON.parse(saved));
-  }, []);
-
-  const handleGenerate = async () => {
-    if (!recipeName.trim()) return alert('Введите название!');
-    setIsLoading(true);
     try {
-      const response = await axios.post(API_URL, { recipeName, format, wishes });
-      const newContent = { ...response.data, title: recipeName };
-      setResult(newContent);
-    } catch (err) {
-      alert("Ошибка сервера. Проверьте Backend.");
+      const res = await fetch('https://food-backend-ai.onrender.com/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dish, type, level, channelFormat: format, additional: extra })
+      });
+      const result = await res.json();
+      setData(result);
+    } catch (e) {
+      alert('Ошибка при генерации контента. Проверьте подключение или логи сервера.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // 2. Функция сохранения в Блокнот
-  const saveToNotebook = () => {
-    if (!result) return;
-    const updatedNotebook = [result, ...notebook];
-    setNotebook(updatedNotebook);
-    localStorage.setItem('food_blogger_notes', JSON.stringify(updatedNotebook));
-    alert('Сохранено в блокнот!');
+  const copy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert('Текст скопирован!');
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ maxWidth: '950px', margin: '40px auto', padding: '30px', backgroundColor: '#fdfdfd', borderRadius: '25px', boxShadow: '0 15px 40px rgba(0,0,0,0.1)' }}>
+      <header style={{ textAlign: 'center', marginBottom: '40px' }}>
+        <h1 style={{ color: '#FF0000', fontSize: '3.5rem', marginBottom: '10px' }}>🎥 YT Chef PRO 3.0</h1>
+        <p style={{ color: '#666', fontSize: '1.1rem' }}>Создавайте контент, который покорит YouTube</p>
+      </header>
       
-      {/* --- ЛЕВАЯ ПАНЕЛЬ: БЛОКНОТ --- */}
-      <div style={{ width: '300px', borderRight: '1px solid #ddd', padding: '20px', backgroundColor: '#f9f9f9' }}>
-        <h2>📒 Блокнот</h2>
-        {notebook.length === 0 && <p style={{color: '#999'}}>Пусто</p>}
-        {notebook.map((note, index) => (
-          <div 
-            key={index} 
-            onClick={() => setResult(note)} // ПРИ КЛИКЕ ДАННЫЕ ОТКРЫВАЮТСЯ СПРАВА
-            style={{ 
-              padding: '10px', 
-              backgroundColor: result?.title === note.title ? '#ffe4e1' : '#fff',
-              border: '1px solid #ddd', 
-              borderRadius: '5px', 
-              marginBottom: '10px', 
-              cursor: 'pointer' 
-            }}
-          >
-            <strong>{note.title}</strong>
-          </div>
-        ))}
-      </div>
-
-      {/* --- ПРАВАЯ ПАНЕЛЬ: ГЕНЕРАТОР --- */}
-      <div style={{ flex: 1, padding: '20px' }}>
-        <h1>🚀 Помощник Фуд-Блогера</h1>
+      <div style={{ display: 'grid', gap: '20px', marginBottom: '30px', padding: '20px', border: '1px solid #eee', borderRadius: '15px', backgroundColor: '#fff' }}>
+        <input 
+          placeholder="Название блюда (например: Итальянская лазанья Болоньезе)" 
+          value={dish} 
+          onChange={e => setDish(e.target.value)} 
+          style={inputStyle} 
+        />
         
-        <div style={{ marginBottom: 20, padding: 15, border: '1px solid #eee', borderRadius: 8 }}>
-          <input
-            type="text"
-            placeholder="Название блюда..."
-            value={recipeName}
-            onChange={(e) => setRecipeName(e.target.value)}
-            style={{ padding: 10, marginBottom: 10, width: '100%', boxSizing: 'border-box' }}
-          />
-          <button 
-            onClick={handleGenerate} 
-            disabled={isLoading}
-            style={{ padding: '10px 20px', backgroundColor: '#FF6347', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer' }}
-          >
-            {isLoading ? 'Генерация...' : 'Сгенерировать'}
-          </button>
+        <div style={{ display: 'flex', gap: '15px' }}>
+          <select value={type} onChange={e => setType(e.target.value)} style={selectStyle}>
+            <option>Длинное видео</option>
+            <option>Shorts / Reels</option>
+          </select>
+          <select value={level} onChange={e => setLevel(e.target.value)} style={selectStyle}>
+            <option>Простой</option>
+            <option>Средний</option>
+            <option>Сложный</option>
+            <option>Для профи</option>
+          </select>
+          <select value={format} onChange={e => setFormat(e.target.value)} style={selectStyle}>
+            <option>Домашняя кухня</option>
+            <option>Кондитерская</option>
+            <option>Фуд-блог</option>
+            <option>ASMR</option>
+            <option>Авторская кухня</option>
+          </select>
         </div>
 
-        {result && (
-          <div style={{ animation: 'fadeIn 0.5s' }}>
-            <button 
-              onClick={saveToNotebook}
-              style={{ padding: '10px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: 5, marginBottom: 20, cursor: 'pointer' }}
-            >
-              💾 Сохранить этот пакет в блокнот
-            </button>
+        <input 
+          placeholder="Дополнительные уточнения (например: без сахара, веганский, для детей)" 
+          value={extra} 
+          onChange={e => setExtra(e.target.value)} 
+          style={inputStyle} 
+        />
+        
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+          <TagButton onClick={() => handleTagClick('без выпечки')}>Без выпечки</TagButton>
+          <TagButton onClick={() => handleTagClick('праздничный')}>Праздничный</TagButton>
+          <TagButton onClick={() => handleTagClick('бюджетный')}>Бюджетный</TagButton>
+          <TagButton onClick={() => handleTagClick('быстрый')}>Быстрый рецепт</TagButton>
+          <TagButton onClick={() => handleTagClick('для похудения')}>Для похудения</TagButton>
+        </div>
 
-            <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '10px' }}>
-              <h2 style={{ color: '#FF6347' }}>{result.title}</h2>
-              <h3>📺 SEO Описание & Таймкоды:</h3>
-              <pre style={{ whiteSpace: 'pre-wrap', background: '#f4f4f4', padding: '15px' }}>{result.SEO_DESCRIPTION}</pre>
-              <p><strong>Таймкоды:</strong> {result.TIMECODES}</p>
-              
-              <h3>📱 Соцсети:</h3>
-              <p><strong>Telegram:</strong> {result.SOCIAL_POSTS.Telegram}</p>
-              
-              <h3>🎬 Сценарий Shorts:</h3>
-              <p style={{ background: '#e0f7fa', padding: '10px' }}>{result.SHORTS_SCRIPT}</p>
-            </div>
-          </div>
-        )}
+        <button 
+          onClick={generate} 
+          disabled={loading} 
+          style={btnPrimaryStyle}
+        >
+          {loading ? 'Создаем SEO-шедевр...' : 'СГЕНЕРИРОВАТЬ КОНТЕНТ-ПАКЕТ'}
+        </button>
       </div>
+
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '50px', color: '#555' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '15px' }}>👨‍🍳</div>
+          <p style={{ fontSize: '1.2rem' }}>Наш AI-шеф готовит вам нечто особенное...</p>
+        </div>
+      )}
+
+      {data && !loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', animation: 'fadeIn 0.6s ease-out' }}>
+          
+          <section style={cardStyle}>
+            <h2 style={{ color: '#d32f2f', marginBottom: '20px' }}>👨‍🍳 Рецепт: {data.recipe.title}</h2>
+            <p style={{ marginBottom: '15px' }}><b>⏱ Время:</b> {data.recipe.time} | <b>📊 Сложность:</b> {data.recipe.difficulty}</p>
+            <h3 style={{ color: '#444', marginBottom: '10px' }}>🛒 Ингредиенты:</h3>
+            <ul style={{ listStyleType: 'disc', marginLeft: '20px', marginBottom: '20px' }}>
+              {data.recipe.ingredients.map((ing: string, i: number) => <li key={i} style={{ marginBottom: '5px' }}>{ing}</li>)}
+            </ul>
+            <h3 style={{ color: '#444', marginBottom: '10px' }}>📝 Пошаговое приготовление:</h3>
+            {data.recipe.steps.map((s: string, i: number) => <p key={i} style={{ marginBottom: '10px', lineHeight: '1.6' }}><b>{i+1}.</b> {s}</p>)}
+          </section>
+
+          <section style={cardStyle}>
+            <h2 style={{ color: '#1976d2', marginBottom: '20px' }}>🎥 YouTube Оптимизация</h2>
+            <h3 style={{ color: '#444', marginBottom: '10px' }}>📌 Лучшие заголовки (кликните, чтобы скопировать):</h3>
+            {data.youtube.titles.map((t: string, i: number) => (
+              <div key={i} onClick={() => copy(t)} style={copyBox}>{t}</div>
+            ))}
+            {data.youtube.timestamps && data.youtube.timestamps.length > 0 && type === 'Длинное видео' && (
+              <>
+                <h3 style={{ color: '#444', marginTop: '20px', marginBottom: '10px' }}>🕒 Тайм-коды:</h3>
+                <pre style={preBox}>{data.youtube.timestamps.join('\n')}</pre>
+              </>
+            )}
+            <h3 style={{ color: '#444', marginTop: '20px', marginBottom: '10px' }}>📝 SEO Описание:</h3>
+            <pre style={preBox}>{data.youtube.description}</pre>
+            <button onClick={() => copy(data.youtube.description)} style={btnPrimaryStyle}>Скопировать описание целиком</button>
+            <h3 style={{ color: '#444', marginTop: '20px', marginBottom: '10px' }}>🏷 SEO Теги:</h3>
+            <p style={preBox}>{data.youtube.tags}</p>
+            <h3 style={{ color: '#444', marginTop: '20px', marginBottom: '10px' }}>#️⃣ Хэштеги:</h3>
+            <p style={preBox}>{data.youtube.hashtags}</p>
+          </section>
+
+          <section style={cardStyle}>
+            <h2 style={{ color: '#388e3c', marginBottom: '20px' }}>📱 Соцсети</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <h3 style={{ color: '#444', marginBottom: '10px' }}>Telegram</h3>
+                <div onClick={() => copy(data.social.telegram)} style={copyBox}>{data.social.telegram}</div>
+              </div>
+              <div>
+                <h3 style={{ color: '#444', marginBottom: '10px' }}>ВКонтакте</h3>
+                <div onClick={() => copy(data.social.vk)} style={copyBox}>{data.social.vk}</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
-};
+}
 
-export default RecipeGenerator;
+const inputStyle = { padding: '15px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '16px', width: '100%' };
+const selectStyle = { flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '15px' };
+const btnPrimaryStyle = { padding: '15px', background: '#FF0000', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', transition: 'background-color 0.3s ease' };
+const TagButton = ({ children, onClick }: { children: React.ReactNode, onClick: () => void }) => (
+  <button onClick={onClick} style={{ padding: '8px 15px', background: '#e0f7fa', color: '#007bff', border: '1px solid #a7d9ef', borderRadius: '20px', cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap', transition: 'background-color 0.2s' }}>
+    {children}
+  </button>
+);
+
+const cardStyle = { padding: '30px', border: '1px solid #eee', borderRadius: '18px', marginBottom: '30px', backgroundColor: '#fff', boxShadow: '0 8px 25px rgba(0,0,0,0.08)' };
+const copyBox = { padding: '15px', background: '#f8f9fa', border: '1px dashed #007bff', borderRadius: '10px', cursor: 'pointer', marginBottom: '10px', fontSize: '15px', lineHeight: '1.5' };
+const preBox = { whiteSpace: 'pre-wrap' as const, background: '#f1f3f5', padding: '20px', borderRadius: '12px', fontSize: '14px', lineHeight: '1.7', color: '#333' };
+
+export default App;
