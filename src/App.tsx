@@ -1,88 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import React, { useState } from 'react';
 
-// --- ИНТЕРФЕЙСЫ (Структура данных из вашего бэкенда) ---
-interface GeneratedData {
-  recipe: {
-    title: string;
-    time: string;
-    difficulty: string;
-    ingredients: string[];
-    steps: string[];
-  };
-  youtube: {
-    titles: string[];
-    description: string;
-    timestamps: string[];
-    tags: string;
-    hashtags: string;
-  };
-  social: {
-    telegram: string;
-    vk: string;
-  };
-}
-
-interface NotebookItem {
-  id: string;
-  date: string;
-  data: GeneratedData;
-}
-
-// --- ЦВЕТОВАЯ ПАЛИТРА (Cozy Kitchen Style) ---
-const theme = {
-  bg: '#FAF7F2',
-  card: '#FFFFFF',
-  text: '#5D4037',
-  accent: '#D4A373',
-  secondary: '#BC8F8F',
-  lightAccent: '#F5EBE0'
-};
-
-export default function App() {
+function App() {
   const [dish, setDish] = useState('');
+  const [type, setType] = useState('Длинное видео');
+  const [level, setLevel] = useState('Средний');
+  const [format, setFormat] = useState('Домашняя кухня');
+  const [extra, setExtra] = useState('');
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<GeneratedData | null>(null);
-  const [notebook, setNotebook] = useState<NotebookItem[]>([]);
 
-  // Загрузка истории из локального хранилища при старте
-  useEffect(() => {
-    const saved = localStorage.getItem('chef-history');
-    if (saved) setNotebook(JSON.parse(saved));
-  }, []);
+  const handleTagClick = (tag: string) => {
+    setExtra(prev => prev.includes(tag) ? prev : (prev ? `${prev}, ${tag}` : tag));
+  };
 
-  const handleGenerate = async () => {
-    if (!dish.trim()) return toast.error("Напишите название блюда");
+  const generate = async () => {
+    if (!dish) return;
+    setData(null);
     setLoading(true);
-    
+
     try {
-      const response = await fetch('https://food-backend-ai.onrender.com/generate', {
+      const res = await fetch('https://food-backend-ai.onrender.com/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          dish, 
-          type: "Длинное видео", 
-          level: "Средний", 
-          channelFormat: "Кулинарный блог", 
-          additional: "Максимально детально" 
-        })
+        body: JSON.stringify({ dish, type, level, channelFormat: format, additional: extra })
       });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Ошибка сервера");
-      
-      setResult(data);
-      
-      // Автоматическое сохранение в историю
-      const newEntry = { id: Date.now().toString(), date: new Date().toLocaleString(), data };
-      const updatedHistory = [newEntry, ...notebook].slice(0, 10);
-      setNotebook(updatedHistory);
-      localStorage.setItem('chef-history', JSON.stringify(updatedHistory));
-
-      toast.success("Контент сгенерирован! 🥐");
-    } catch (err: any) {
-      toast.error(err.message);
+      const result = await res.json();
+      setData(result);
+    } catch (e) {
+      alert('Ошибка при генерации контента. Проверьте подключение или логи сервера.');
     } finally {
       setLoading(false);
     }
@@ -90,103 +35,140 @@ export default function App() {
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast.info("Скопировано в буфер");
+    alert('Текст скопирован!');
   };
 
   return (
-    <div style={{ backgroundColor: theme.bg, minHeight: '100vh', padding: '20px', fontFamily: '"Segoe UI", sans-serif', color: theme.text }}>
-      <ToastContainer position="bottom-right" />
+    <div style={{ maxWidth: '950px', margin: '40px auto', padding: '30px', backgroundColor: '#fdfdfd', borderRadius: '25px', boxShadow: '0 15px 40px rgba(0,0,0,0.1)' }}>
+      <header style={{ textAlign: 'center', marginBottom: '40px' }}>
+        <h1 style={{ color: '#FF0000', fontSize: '3.5rem', marginBottom: '10px' }}>🎥 YT Chef PRO 3.0</h1>
+        <p style={{ color: '#666', fontSize: '1.1rem' }}>Создавайте контент, который покорит YouTube</p>
+      </header>
       
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        {/* HEADER */}
-        <header style={{ textAlign: 'center', marginBottom: '40px', paddingTop: '20px' }}>
-          <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0, color: theme.text }}>Помощник фуд-блогеру</h1>
-          <p style={{ color: theme.secondary }}>Создание контента • Полный план публикации</p>
-        </header>
+      <div style={{ display: 'grid', gap: '20px', marginBottom: '30px', padding: '20px', border: '1px solid #eee', borderRadius: '15px', backgroundColor: '#fff' }}>
+        <input 
+          placeholder="Название блюда (например: Итальянская лазанья Болоньезе)" 
+          value={dish} 
+          onChange={e => setDish(e.target.value)} 
+          style={inputStyle} 
+        />
+        
+        <div style={{ display: 'flex', gap: '15px' }}>
+          <select value={type} onChange={e => setType(e.target.value)} style={selectStyle}>
+            <option>Длинное видео</option>
+            <option>Shorts / Reels</option>
+          </select>
+          <select value={level} onChange={e => setLevel(e.target.value)} style={selectStyle}>
+            <option>Простой</option>
+            <option>Средний</option>
+            <option>Сложный</option>
+            <option>Для профи</option>
+          </select>
+          <select value={format} onChange={e => setFormat(e.target.value)} style={selectStyle}>
+            <option>Домашняя кухня</option>
+            <option>Кондитерская</option>
+            <option>Фуд-блог</option>
+            <option>ASMR</option>
+            <option>Авторская кухня</option>
+          </select>
+        </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: '30px' }}>
+        <input 
+          placeholder="Дополнительные уточнения (например: без сахара, веганский, для детей)" 
+          value={extra} 
+          onChange={e => setExtra(e.target.value)} 
+          style={inputStyle} 
+        />
+        
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+          <TagButton onClick={() => handleTagClick('без выпечки')}>Без выпечки</TagButton>
+          <TagButton onClick={() => handleTagClick('праздничный')}>Праздничный</TagButton>
+          <TagButton onClick={() => handleTagClick('бюджетный')}>Бюджетный</TagButton>
+          <TagButton onClick={() => handleTagClick('быстрый')}>Быстрый рецепт</TagButton>
+          <TagButton onClick={() => handleTagClick('для похудения')}>Для похудения</TagButton>
+        </div>
+
+        <button 
+          onClick={generate} 
+          disabled={loading} 
+          style={btnPrimaryStyle}
+        >
+          {loading ? 'Создаем SEO-шедевр...' : 'СГЕНЕРИРОВАТЬ КОНТЕНТ-ПАКЕТ'}
+        </button>
+      </div>
+
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '50px', color: '#555' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '15px' }}>👨‍🍳</div>
+          <p style={{ fontSize: '1.2rem' }}>Наш AI-шеф готовит вам нечто особенное...</p>
+        </div>
+      )}
+
+      {data && !loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', animation: 'fadeIn 0.6s ease-out' }}>
           
-          {/* ЛЕВАЯ ПАНЕЛЬ (Ввод и История) */}
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ background: theme.card, padding: '25px', borderRadius: '24px', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
-              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Блюдо дня:</label>
-              <input 
-                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: `1px solid ${theme.lightAccent}`, marginBottom: '15px', outline: 'none' }}
-                placeholder="Напр: Итальянская паста..."
-                value={dish}
-                onChange={(e) => setDish(e.target.value)}
-              />
-              <button 
-                onClick={handleGenerate}
-                disabled={loading}
-                style={{ width: '100%', padding: '15px', borderRadius: '12px', border: 'none', backgroundColor: theme.accent, color: 'white', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}
-              >
-                {loading ? 'Шеф готовит...' : 'Создать контент'}
-              </button>
-            </div>
+          <section style={cardStyle}>
+            <h2 style={{ color: '#d32f2f', marginBottom: '20px' }}>👨‍🍳 Рецепт: {data.recipe.title}</h2>
+            <p style={{ marginBottom: '15px' }}><b>⏱ Время:</b> {data.recipe.time} | <b>📊 Сложность:</b> {data.recipe.difficulty}</p>
+            <h3 style={{ color: '#444', marginBottom: '10px' }}>🛒 Ингредиенты:</h3>
+            <ul style={{ listStyleType: 'disc', marginLeft: '20px', marginBottom: '20px' }}>
+              {data.recipe.ingredients.map((ing: string, i: number) => <li key={i} style={{ marginBottom: '5px' }}>{ing}</li>)}
+            </ul>
+            <h3 style={{ color: '#444', marginBottom: '10px' }}>📝 Пошаговое приготовление:</h3>
+            {data.recipe.steps.map((s: string, i: number) => <p key={i} style={{ marginBottom: '10px', lineHeight: '1.6' }}><b>{i+1}.</b> {s}</p>)}
+          </section>
 
-            <div style={{ background: theme.card, padding: '25px', borderRadius: '24px', flex: 1 }}>
-              <h3 style={{ fontSize: '1.1rem', marginBottom: '15px' }}>📒 История</h3>
-              {notebook.map(item => (
-                <div key={item.id} onClick={() => setResult(item.data)} style={{ padding: '10px', borderBottom: `1px solid ${theme.bg}`, cursor: 'pointer', fontSize: '0.9rem' }}>
-                  <strong>{item.data.recipe.title}</strong>
-                  <div style={{ fontSize: '0.75rem', color: '#999' }}>{item.date}</div>
-                </div>
-              ))}
-            </div>
-          </aside>
-
-          {/* ПРАВАЯ ПАНЕЛЬ (Результаты) */}
-          <main style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-            {!result ? (
-              <div style={{ background: theme.card, borderRadius: '24px', height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', border: '2px dashed #eee' }}>
-                Здесь появится ваш рецепт и SEO-план
-              </div>
-            ) : (
+          <section style={cardStyle}>
+            <h2 style={{ color: '#1976d2', marginBottom: '20px' }}>🎥 YouTube Оптимизация</h2>
+            <h3 style={{ color: '#444', marginBottom: '10px' }}>📌 Лучшие заголовки (кликните, чтобы скопировать):</h3>
+            {data.youtube.titles.map((t: string, i: number) => (
+              <div key={i} onClick={() => copy(t)} style={copyBox}>{t}</div>
+            ))}
+            {data.youtube.timestamps && data.youtube.timestamps.length > 0 && type === 'Длинное видео' && (
               <>
-                {/* Карточка Рецепта */}
-                <section style={{ background: theme.card, padding: '30px', borderRadius: '24px', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ color: theme.accent, marginTop: 0 }}>{result.recipe.title}</h2>
-                  <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-                    <span style={{ padding: '4px 12px', background: theme.lightAccent, borderRadius: '20px', fontSize: '0.8rem' }}>⏱ {result.recipe.time}</span>
-                    <span style={{ padding: '4px 12px', background: theme.lightAccent, borderRadius: '20px', fontSize: '0.8rem' }}>📊 {result.recipe.difficulty}</span>
-                  </div>
-                  
-                  <h4>🛒 Ингредиенты</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    {result.recipe.ingredients.map((ing, i) => <div key={i} style={{ fontSize: '0.9rem' }}>• {ing}</div>)}
-                  </div>
-                </section>
-
-                {/* Соцсети */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  <div style={{ background: '#E3F2FD', padding: '20px', borderRadius: '24px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between' }}>
-                      Telegram <button onClick={() => copy(result.social.telegram)} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>📋</button>
-                    </h4>
-                    <p style={{ fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{result.social.telegram}</p>
-                  </div>
-                  <div style={{ background: '#FFF3E0', padding: '20px', borderRadius: '24px' }}>
-                    <h4 style={{ margin: '0 0 10px 0' }}>YouTube Tags</h4>
-                    <p style={{ fontSize: '0.8rem', color: theme.text }}>{result.youtube.tags}</p>
-                  </div>
-                </div>
-
-                {/* Шаги */}
-                <section style={{ background: theme.card, padding: '30px', borderRadius: '24px' }}>
-                  <h4>👨‍🍳 Пошаговое приготовление</h4>
-                  {result.recipe.steps.map((step, i) => (
-                    <div key={i} style={{ marginBottom: '15px', display: 'flex', gap: '15px' }}>
-                      <span style={{ color: theme.accent, fontWeight: 'bold' }}>{i + 1}</span>
-                      <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: '1.5' }}>{step}</p>
-                    </div>
-                  ))}
-                </section>
+                <h3 style={{ color: '#444', marginTop: '20px', marginBottom: '10px' }}>🕒 Тайм-коды:</h3>
+                <pre style={preBox}>{data.youtube.timestamps.join('\n')}</pre>
               </>
             )}
-          </main>
+            <h3 style={{ color: '#444', marginTop: '20px', marginBottom: '10px' }}>📝 SEO Описание:</h3>
+            <pre style={preBox}>{data.youtube.description}</pre>
+            <button onClick={() => copy(data.youtube.description)} style={btnPrimaryStyle}>Скопировать описание целиком</button>
+            <h3 style={{ color: '#444', marginTop: '20px', marginBottom: '10px' }}>🏷 SEO Теги:</h3>
+            <p style={preBox}>{data.youtube.tags}</p>
+            <h3 style={{ color: '#444', marginTop: '20px', marginBottom: '10px' }}>#️⃣ Хэштеги:</h3>
+            <p style={preBox}>{data.youtube.hashtags}</p>
+          </section>
+
+          <section style={cardStyle}>
+            <h2 style={{ color: '#388e3c', marginBottom: '20px' }}>📱 Соцсети</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <h3 style={{ color: '#444', marginBottom: '10px' }}>Telegram</h3>
+                <div onClick={() => copy(data.social.telegram)} style={copyBox}>{data.social.telegram}</div>
+              </div>
+              <div>
+                <h3 style={{ color: '#444', marginBottom: '10px' }}>ВКонтакте</h3>
+                <div onClick={() => copy(data.social.vk)} style={copyBox}>{data.social.vk}</div>
+              </div>
+            </div>
+          </section>
         </div>
-      </div>
+      )}
     </div>
   );
 }
+
+const inputStyle = { padding: '15px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '16px', width: '100%' };
+const selectStyle = { flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '15px' };
+const btnPrimaryStyle = { padding: '15px', background: '#FF0000', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', transition: 'background-color 0.3s ease' };
+const TagButton = ({ children, onClick }: { children: React.ReactNode, onClick: () => void }) => (
+  <button onClick={onClick} style={{ padding: '8px 15px', background: '#e0f7fa', color: '#007bff', border: '1px solid #a7d9ef', borderRadius: '20px', cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap', transition: 'background-color 0.2s' }}>
+    {children}
+  </button>
+);
+
+const cardStyle = { padding: '30px', border: '1px solid #eee', borderRadius: '18px', marginBottom: '30px', backgroundColor: '#fff', boxShadow: '0 8px 25px rgba(0,0,0,0.08)' };
+const copyBox = { padding: '15px', background: '#f8f9fa', border: '1px dashed #007bff', borderRadius: '10px', cursor: 'pointer', marginBottom: '10px', fontSize: '15px', lineHeight: '1.5' };
+const preBox = { whiteSpace: 'pre-wrap' as const, background: '#f1f3f5', padding: '20px', borderRadius: '12px', fontSize: '14px', lineHeight: '1.7', color: '#333' };
+
+export default App;

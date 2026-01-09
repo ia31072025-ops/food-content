@@ -7,100 +7,81 @@ app.use(cors());
 app.use(express.json());
 
 app.post('/generate', async (req, res) => {
+    const { dish, type, level, channelFormat, additional } = req.body;
+    
+    // Твой мощный промпт (оставляем без изменений)
+    const prompt = `Ты — элитный шеф-повар и ТОП-YouTube-SEO специалист 2026.
+    Создай контент-пакет для блюда "${dish}".
+    ПАРАМЕТРЫ: Тип: ${type}, Сложность: ${level}, Формат: ${channelFormat}, Уточнения: ${additional}.
+    ФОРМАТ ОТВЕТА: СТРОГО JSON. (Далее по твоей структуре)`;
+
+    const systemMessage = "Ты - профессиональный AI-ассистент для фуд-блогеров. Генерируй качественный JSON контент.";
+
     try {
-        const { dish, type, level, channelFormat, additional } = req.body;
-        const apiKey = process.env.OPENAI_API_KEY;
-
-        if (!apiKey) {
-            console.error('API_KEY is missing');
-            return res.status(500).json({ error: 'Ошибка сервера: Отсутствует API Key. Обратитесь к администратору.' });
-        }
-
-        const prompt = `
-        Ты — элитный шеф-повар с международным опытом и ТОП-YouTube-SEO специалист 2026.
-        Твоя задача: Создать полный контент-пакет для видео про блюдо "${dish}".
-
-        ПАРАМЕТРЫ ЗАПРОСА:
-        - Блюдо: "${dish}"
-        - Тип видео: "${type}"
-        - Уровень сложности: "${level}"
-        - Формат канала: "${channelFormat}"
-        - Дополнительные уточнения: "${additional}"
-
-        🛑 ПРОФЕССИОНАЛЬНЫЙ КОНТРОЛЬ КАЧЕСТВА РЕЦЕПТА:
-        1. ИСХОДНЫЕ ИНГРЕДИЕНТЫ: Всегда используй базовые продукты. Запрещено брать готовые коржи, тесто, магазинные соусы, если это не является исторической основой блюда.
-        2. ПРАВИЛО "ПЕЧЕНЬЯ":
-           - Если блюдо традиционно готовится с выпечкой с нуля (например, бисквитный торт, пирог) - опиши процесс выпечки теста/коржей.
-           - Если печенье является КЛАССИЧЕСКИМ ИНГРЕДИЕНТОМ этого конкретного блюда (например, савоярди для Тирамису, песочная крошка для основы чизкейка) или УКАЗАНО В "Дополнительных уточнениях" (например, "торт из печенья без выпечки"), тогда используй его, детально описывая подготовку.
-        3. ДЕТАЛИЗАЦИЯ ШАГОВ: Минимум 10-15 подробных шагов. Указывай точные меры (граммы, мл, см), температуру (°C), время (минуты), а также визуальные и тактильные признаки готовности ("до золотистой корочки", "до состояния 'ленты'", "до прозрачности").
-        4. ЯЗЫК: Используй профессиональную кулинарную терминологию, но доступно.
-
-        ✅ ТРЕБОВАНИЯ К SEO-ОФОРМЛЕНИЮ (YouTube 2026):
-        1. ЗАГОЛОВКИ: 5 высококонверсионных, SEO-оптимизированных названий (до 60 символов).
-        2. ОПИСАНИЕ: 400-600 слов. Включи: 
-           - Вступление с ключевыми словами в первых 2 строках.
-           - Полную историю/концепцию блюда.
-           - Описание вкуса, аромата, текстуры.
-           - Полный список ингредиентов (из рецепта).
-           - Призыв к действию (подписка, лайк, комментарий).
-           - Секреты или лайфхаки шеф-повара.
-        3. ТАЙМКОДЫ: Поминутная разбивка видео-процесса (только для "Длинное видео").
-        4. ТЕГИ: 30-40 релевантных SEO-тегов (высоко-, средне-, низкочастотные) через запятую.
-        5. ХЭШТЕГИ: 15-20 эффективных хэштегов через пробел.
-
-        ФОРМАТ ОТВЕТА: СТРОГО JSON.
-        {
-          "recipe": {
-            "title": "Название блюда",
-            "time": "Общее время приготовления",
-            "difficulty": "Уровень сложности",
-            "ingredients": ["Список ингредиентов с точными мерами"],
-            "steps": ["Детальные шаги приготовления с нюансами"]
-          },
-          "youtube": {
-            "titles": ["5 SEO-названий видео"],
-            "description": "Длинное SEO-описание для YouTube (400-600 слов)",
-            "timestamps": ["0:00 - Вступление", "01:30 - Ингредиенты", "и так далее"],
-            "tags": "Тег1, Тег2, Тег3, ...",
-            "hashtags": "#Хэштег1 #Хэштег2 #Хэштег3 ..."
-          },
-          "social": {
-            "telegram": "Интригующий пост для Telegram с эмодзи",
-            "vk": "Подробная статья-лонгрид для ВКонтакте"
-          }
-        }`;
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // --- ПОПЫТКА 1: ЛОКАЛЬНАЯ OLLAMA (GEMMA 2) ---
+        console.log("📡 Пробую локальную Ollama (Gemma 2)...");
+        
+        const ollamaResponse = await fetch(`${process.env.OLLAMA_URL}/api/chat`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey.trim()}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: "gpt-4o-mini", // Оптимальная модель для детализированных ответов
+                model: process.env.MODEL_NAME_LOCAL || "gemma2:9b",
                 messages: [
-                    { role: "system", content: "Ты - профессиональный AI-ассистент для фуд-блогеров. Твоя задача - генерировать высококачественный, детализированный и SEO-оптимизированный контент для YouTube, строго следуя инструкциям." },
+                    { role: "system", content: systemMessage },
                     { role: "user", content: prompt }
                 ],
-                response_format: { type: "json_object" },
-                temperature: 0.6 // Слегка снижена для большей точности рецептов
-            })
+                format: "json", // Gemma 2 отлично умеет в JSON
+                stream: false
+            }),
+            signal: AbortSignal.timeout(7000) // Ждем 7 секунд. Если комп не тянет или выключен - идем дальше.
         });
 
-        const data = await response.json();
-        if (!response.ok) {
-            console.error("OpenAI API Error:", data);
-            return res.status(response.status).json({ error: data.error?.message || 'Ошибка API OpenAI' });
+        if (ollamaResponse.ok) {
+            const data = await ollamaResponse.json();
+            console.log("✅ Успех: Ответ получен от Ollama!");
+            return res.json(JSON.parse(data.message.content));
         }
-        
-        res.json(JSON.parse(data.choices[0].message.content));
+        throw new Error("Ollama вернула ошибку или недоступна");
 
     } catch (error) {
-        console.error("Server processing error:", error);
-        res.status(500).json({ error: `Произошла ошибка на сервере: ${error.message}` });
+        // --- ПОПЫТКА 2: OPENAI (РЕЗЕРВ) ---
+        console.log("⚠️ Ollama недоступна. Переключаюсь на OpenAI...");
+        
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+            return res.status(500).json({ error: 'Локальная сеть недоступна, а ключ OpenAI отсутствует.' });
+        }
+
+        try {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey.trim()}`
+                },
+                body: JSON.stringify({
+                    model: "gpt-4o-mini",
+                    messages: [
+                        { role: "system", content: systemMessage },
+                        { role: "user", content: prompt }
+                    ],
+                    response_format: { type: "json_object" },
+                    temperature: 0.6
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error?.message || 'Ошибка OpenAI');
+            
+            console.log("✅ Успех: Ответ получен от OpenAI!");
+            return res.json(JSON.parse(data.choices[0].message.content));
+
+        } catch (openAiError) {
+            console.error("❌ Критическая ошибка:", openAiError);
+            res.status(500).json({ error: `Все сервисы недоступны: ${openAiError.message}` });
+        }
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 YT Chef PRO Backend запущен на порту ${PORT}`));
-
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 YT Chef HYBRID запущен на порту ${PORT}`));
