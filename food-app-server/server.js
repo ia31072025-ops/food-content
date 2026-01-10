@@ -9,17 +9,38 @@ app.use(express.json());
 app.post('/generate', async (req, res) => {
     const { dish, type, level, channelFormat, additional } = req.body;
     
-    // Твой мощный промпт (оставляем без изменений)
-    const prompt = `Ты — элитный шеф-повар и ТОП-YouTube-SEO специалист 2026.
-    Создай контент-пакет для блюда "${dish}".
+    const prompt = `
+    Ты — элитный шеф-повар и ТОП-YouTube-SEO специалист 2026.
+    Создай полный контент-пакет в формате JSON для блюда "${dish}".
     ПАРАМЕТРЫ: Тип: ${type}, Сложность: ${level}, Формат: ${channelFormat}, Уточнения: ${additional}.
-    ФОРМАТ ОТВЕТА: СТРОГО JSON. (Далее по твоей структуре)`;
 
-    const systemMessage = "Ты - профессиональный AI-ассистент для фуд-блогеров. Генерируй качественный JSON контент.";
+    ФОРМАТ ОТВЕТА: СТРОГО JSON.
+    {
+      "recipe": {
+        "title": "Название",
+        "time": "Время",
+        "difficulty": "Сложность",
+        "ingredients": ["Список"],
+        "steps": ["Шаги"]
+      },
+      "youtube": {
+        "titles": ["5 названий"],
+        "description": "Описание 400-600 слов",
+        "timestamps": ["Таймкоды"],
+        "tags": "теги, через, запятую",
+        "hashtags": "#хештеги"
+      },
+      "social": {
+        "telegram": "Пост",
+        "vk": "Статья"
+      }
+    }`;
+
+    const systemMessage = "Ты - профессиональный AI-ассистент. Отвечай ТОЛЬКО чистым JSON без лишнего текста.";
 
     try {
-        // --- ПОПЫТКА 1: ЛОКАЛЬНАЯ OLLAMA (GEMMA 2) ---
-        console.log("📡 Пробую локальную Ollama (Gemma 2)...");
+        // --- 1. ПОПЫТКА ЧЕРЕЗ OLLAMA ---
+        console.log(`📡 [${new Date().toLocaleTimeString()}] Запрос к Ollama (${dish})...`);
         
         const ollamaResponse = await fetch(`${process.env.OLLAMA_URL}/api/chat`, {
             method: 'POST',
@@ -30,30 +51,37 @@ app.post('/generate', async (req, res) => {
                     { role: "system", content: systemMessage },
                     { role: "user", content: prompt }
                 ],
-                format: "json", // Gemma 2 отлично умеет в JSON
-                stream: false
+                stream: false,
+                options: { temperature: 0.6 }
             }),
-            signal: AbortSignal.timeout(7000) // Ждем 7 секунд. Если комп не тянет или выключен - идем дальше.
+            signal: AbortSignal.timeout(90000) // Ждем 90 секунд
         });
 
         if (ollamaResponse.ok) {
             const data = await ollamaResponse.json();
+            let content = data.message.content;
+
+            // Очистка ответа от возможных кавычек ```json ... ```
+            content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            const parsedJson = JSON.parse(content);
             console.log("✅ Успех: Ответ получен от Ollama!");
-            return res.json(JSON.parse(data.message.content));
+            return res.json(parsedJson);
         }
-        throw new Error("Ollama вернула ошибку или недоступна");
+        throw new Error("Ollama недоступна");
 
     } catch (error) {
-        // --- ПОПЫТКА 2: OPENAI (РЕЗЕРВ) ---
-        console.log("⚠️ Ollama недоступна. Переключаюсь на OpenAI...");
+        // --- 2. РЕЗЕРВ: OPENAI ---
+        console.log(`⚠️ Ollama не ответила (${error.message}). Пробую OpenAI...`);
         
         const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-            return res.status(500).json({ error: 'Локальная сеть недоступна, а ключ OpenAI отсутствует.' });
+        if (!apiKey || apiKey.includes('ВАШ_РЕАЛЬНЫЙ_КЛЮЧ')) {
+            console.error("❌ Ошибка: Ключ OpenAI не настроен!");
+            return res.status(500).json({ error: "Ollama недоступна, а ключ OpenAI не настроен в .env" });
         }
 
         try {
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -65,23 +93,31 @@ app.post('/generate', async (req, res) => {
                         { role: "system", content: systemMessage },
                         { role: "user", content: prompt }
                     ],
-                    response_format: { type: "json_object" },
-                    temperature: 0.6
+                    response_format: { type: "json_object" }
                 })
             });
 
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error?.message || 'Ошибка OpenAI');
-            
+            const data = await openAiResponse.json();
+            if (!openAiResponse.ok) throw new Error(data.error?.message || 'Ошибка OpenAI');
+
             console.log("✅ Успех: Ответ получен от OpenAI!");
             return res.json(JSON.parse(data.choices[0].message.content));
 
-        } catch (openAiError) {
-            console.error("❌ Критическая ошибка:", openAiError);
-            res.status(500).json({ error: `Все сервисы недоступны: ${openAiError.message}` });
+        } catch (apiError) {
+            console.error("❌ Критическая ошибка:", apiError.message);
+            res.status(500).json({ 
+                error: "Все сервисы недоступны", 
+                details: apiError.message 
+            });
         }
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 YT Chef HYBRID запущен на порту ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`-----------------------------------------------`);
+    console.log(`🚀 Сервер запущен на порту ${PORT}`);
+    console.log(`🔗 Локальный адрес: http://localhost:${PORT}`);
+    console.log(`🧠 Модель Ollama: ${process.env.MODEL_NAME_LOCAL}`);
+    console.log(`-----------------------------------------------`);
+});
