@@ -7,10 +7,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Инициализация Groq (берет ключ из переменной окружения или использует твой напрямую)
 const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY || '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'
+    apiKey: process.env.GROQ_API_KEY // Удалили текстовый ключ
 });
+
 
 app.post('/generate', async (req, res) => {
     const { dish, type, level, channelFormat, additional } = req.body;
