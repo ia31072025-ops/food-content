@@ -1,10 +1,16 @@
 const express = require('express');
 const cors = require('cors');
+const Groq = require('groq-sdk');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Инициализация Groq (берет ключ из переменной окружения или использует твой напрямую)
+const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY || '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'
+});
 
 app.post('/generate', async (req, res) => {
     const { dish, type, level, channelFormat, additional } = req.body;
@@ -39,7 +45,7 @@ app.post('/generate', async (req, res) => {
     const systemMessage = "Ты - профессиональный AI-ассистент. Отвечай ТОЛЬКО чистым JSON без лишнего текста.";
 
     try {
-        // --- 1. ПОПЫТКА ЧЕРЕЗ OLLAMA ---
+        // --- 1. ПОПЫТКА ЧЕРЕЗ OLLAMA (Твой локальный ПК через туннель) ---
         console.log(`📡 [${new Date().toLocaleTimeString()}] Запрос к Ollama (${dish})...`);
         
         const ollamaResponse = await fetch(`${process.env.OLLAMA_URL}/api/chat`, {
@@ -54,60 +60,41 @@ app.post('/generate', async (req, res) => {
                 stream: false,
                 options: { temperature: 0.6 }
             }),
-            signal: AbortSignal.timeout(90000) // Ждем 90 секунд
+            signal: AbortSignal.timeout(15000) // Сократил до 15 сек, чтобы быстрее переключаться на запасной вариант
         });
 
         if (ollamaResponse.ok) {
             const data = await ollamaResponse.json();
-            let content = data.message.content;
-
-            // Очистка ответа от возможных кавычек ```json ... ```
-            content = content.replace(/```json/g, '').replace(/```/g, '').trim();
-
-            const parsedJson = JSON.parse(content);
+            let content = data.message.content.replace(/```json/g, '').replace(/```/g, '').trim();
             console.log("✅ Успех: Ответ получен от Ollama!");
-            return res.json(parsedJson);
+            return res.json(JSON.parse(content));
         }
-        throw new Error("Ollama недоступна");
+        throw new Error("Ollama не ответила или вернула ошибку");
 
     } catch (error) {
-        // --- 2. РЕЗЕРВ: OPENAI ---
-        console.log(`⚠️ Ollama не ответила (${error.message}). Пробую OpenAI...`);
+        // --- 2. РЕЗЕРВ: GROQ (Вместо OpenAI) ---
+        console.log(`⚠️ Ollama недоступна. Переключаюсь на Groq (Llama 3.3)...`);
         
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey || apiKey.includes('ВАШ_РЕАЛЬНЫЙ_КЛЮЧ')) {
-            console.error("❌ Ошибка: Ключ OpenAI не настроен!");
-            return res.status(500).json({ error: "Ollama недоступна, а ключ OpenAI не настроен в .env" });
-        }
-
         try {
-            const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey.trim()}`
-                },
-                body: JSON.stringify({
-                    model: "gpt-4o-mini",
-                    messages: [
-                        { role: "system", content: systemMessage },
-                        { role: "user", content: prompt }
-                    ],
-                    response_format: { type: "json_object" }
-                })
+            const completion = await groq.chat.completions.create({
+                messages: [
+                    { role: "system", content: systemMessage },
+                    { role: "user", content: prompt }
+                ],
+                model: "llama-3.3-70b-versatile",
+                temperature: 0.6,
+                response_format: { type: "json_object" } // Groq тоже умеет строго в JSON
             });
 
-            const data = await openAiResponse.json();
-            if (!openAiResponse.ok) throw new Error(data.error?.message || 'Ошибка OpenAI');
+            const content = completion.choices[0].message.content;
+            console.log("✅ Успех: Ответ получен от Groq!");
+            return res.json(JSON.parse(content));
 
-            console.log("✅ Успех: Ответ получен от OpenAI!");
-            return res.json(JSON.parse(data.choices[0].message.content));
-
-        } catch (apiError) {
-            console.error("❌ Критическая ошибка:", apiError.message);
+        } catch (groqError) {
+            console.error("❌ Критическая ошибка всех сервисов:", groqError.message);
             res.status(500).json({ 
-                error: "Все сервисы недоступны", 
-                details: apiError.message 
+                error: "Все сервисы (Ollama и Groq) недоступны", 
+                details: groqError.message 
             });
         }
     }
@@ -116,8 +103,7 @@ app.post('/generate', async (req, res) => {
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`-----------------------------------------------`);
-    console.log(`🚀 Сервер запущен на порту ${PORT}`);
-    console.log(`🔗 Локальный адрес: http://localhost:${PORT}`);
-    console.log(`🧠 Модель Ollama: ${process.env.MODEL_NAME_LOCAL}`);
+    console.log(`🚀 YT Chef PRO 3.0 запущен на порту ${PORT}`);
+    console.log(`💡 Резервный ИИ: Groq Cloud (Llama 3.3)`);
     console.log(`-----------------------------------------------`);
 });
