@@ -135,21 +135,7 @@ app.post('/generate', async (req, res) => {
                 details: groqError.message 
             });
         }
-    }
-            });
-
-            const content = completion.choices[0].message.content;
-            console.log("✅ Успех: Ответ получен от Groq!");
-            return res.json(JSON.parse(content));
-
-        } catch (groqError) {
-            console.error("❌ Критическая ошибка всех сервисов:", groqError.message);
-            res.status(500).json({ 
-                error: "Все сервисы (Ollama и Groq) недоступны", 
-                details: groqError.message 
-            });
-        }
-    }
+   
 });
 
 const PORT = process.env.PORT || 10000;
