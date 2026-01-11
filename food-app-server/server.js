@@ -12,86 +12,68 @@ const groq = new Groq({
 });
 
 app.post('/generate', async (req, res) => {
-    const { dish, type, level, channelFormat, additional } = req.body;
+    const { dish, additional, type, level } = req.body;
 
-    const promptText = `
-Ты — профессиональный YouTube-продюсер и фуд-копирайтер. 
-Твоя задача — создать полное SEO-оформление для видео про "${dish}".
-Особенности: ${additional || 'Классический рецепт'}. 
-Тип: ${type}, Сложность: ${level}, Формат: ${channelFormat}.
-`;
+    // --- ТВОЙ ПРОМПТ ДОСЛОВНО ---
+    const systemMessage = `Ты — профессиональный YouTube-продюсер и фуд-копирайтер с опытом создания вирусного контента. Твоя задача — создать полное SEO-оформление для кулинарного видео, которое заставит зрителя кликнуть и досмотреть до конца.
 
-    const systemMessage = `${promptText}
-    
-ВАЖНО: Пиши ОЧЕНЬ подробно. Описание YouTube должно быть не менее 500-600 слов.
-Ответ дай СТРОГО в формате JSON. 
+Я дам тебе название блюда и краткие детали. На основе этого ты должен сгенерировать:
 
-СТРУКТУРА:
-{
-  "youtube": {
-    "titles": { 
-        "viral": "Эмоциональный заголовок с капсом и эмодзи", 
-        "seo": "Поисковый заголовок", 
-        "mixed": "Смешанный заголовок" 
-    },
-    "description": "Здесь пиши огромный текст на 600 слов с хуком, историей и советами", 
-    "hashtags": ["#тег1", "#тег2"]
-  },
-  "recipe": {
-    "title": "Название",
-    "ingredients": ["Список с граммовками"],
-    "steps": ["Детальные шаги"]
-  },
-  "social": {
-    "telegram": "Готовый виральный пост для Telegram",
-    "vk": "Подробный пост-статья для VK"
-  }
-}`;
+1. ТРИ ВАРИАНТА НАЗВАНИЯ (SEO + Кликбейт):
+   - Вариант 1: Эмоциональный/Вирусный (с упором на интригу или шок-контент).
+   - Вариант 2: Поисковый (четкое название блюда + "как приготовить").
+   - Вариант 3: Смешанный (Польза/Скорость + Название).
+   *Используй капс, эмодзи и сильные слова (Секрет, За 5 минут, Самый вкусный).*
+
+2. ЖИВОЕ ОПИСАНИЕ ВИДЕО:
+   - ХУК (Первые 2 строки): Должен быть виден до кнопки "Ещё". Это должна быть провокация, вопрос или обещание невероятного вкуса. Никаких "В этом видео я покажу...". Сразу к делу!
+   - ОСНОВНАЯ ЧАСТЬ: "Вкусный" текст. Используй сенсорные слова (хрустящий, сочный, тает во рту, ароматный). Объясни, почему этот рецепт лучший (быстро, дешево, необычно).
+   - SEO-БЛОК: Органично вплети ключевые слова в текст.
+
+3. СПИСОК ИНГРЕДИЕНТОВ:
+   - Оформи красивым списком с марлерами.
+
+4. ХЕШТЕГИ:
+   - 5-7 самых релевантных тегов для YouTube (#Рецепт #Еда #КакПриготовить...).
+
+---
+МОЙ ЗАПРОС:
+Блюдо: ${dish}
+Особенности: ${additional || 'Классический рецепт'}
+
+СТРУКТУРА ОТВЕТА:
+1. Заголовок с ключевым словом (Clickbait, но честный).
+2. Захватывающее вступление (первые 2 строки), содержащее главные ключевые слова для алгоритмов.
+3. Блок "В этом видео вы узнаете:" (список преимуществ).
+4. Список ингредиентов с иконками.
+5. Блок хэштегов в конце (5-7 штук).
+
+ПРАВИЛА:
+- Никаких приветствий типа "Доброе утро".
+- Используй сильные глаголы: "Узнайте", "Попробуйте", "Секрет", "Шок".
+- Текст должен быть разбит на короткие абзацы для удобства чтения.
+- Пиши на русском языке, сочно и профессионально.
+- Ответ дай строго в формате JSON: {"description": "весь текст здесь", "recipe": {"ingredients": [], "steps": []}}`;
 
     try {
-        console.log(`📡 Запрос к ИИ для: ${dish}`);
+        console.log(`📡 Запрос для: ${dish}`);
 
-        // 1. OLLAMA
-        try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 8000);
-            const ollamaResp = await fetch(`${process.env.OLLAMA_URL || 'http://127.0.0.1:11434'}/api/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: process.env.MODEL_NAME_LOCAL || "gemma2:latest",
-                    messages: [{ role: "user", content: systemMessage }],
-                    format: "json",
-                    stream: false
-                }),
-                signal: controller.signal
-            });
-            clearTimeout(timeout);
-            if (ollamaResp.ok) {
-                const data = await ollamaResp.json();
-                console.log("✅ Ответ от Ollama");
-                return res.json(JSON.parse(data.message.content));
-            }
-        } catch (e) { console.log("⚠️ Ollama offline..."); }
-
-        // 2. GROQ (Llama 3.3 70B)
         const completion = await groq.chat.completions.create({
             messages: [
-                { role: "system", content: "You are a professional copywriter. You MUST provide extremely detailed responses in JSON format." },
-                { role: "user", content: systemMessage }
+                { role: "system", content: systemMessage }
             ],
             model: "llama-3.3-70b-versatile",
             temperature: 0.7,
-            max_tokens: 4096, // БЕЗ ЭТОГО ТЕКСТ БУДЕТ КОРОТКИМ
+            max_tokens: 4000,
             response_format: { type: "json_object" }
         });
 
-        console.log("✅ Ответ от Groq (Llama 3.3)");
-        res.json(JSON.parse(completion.choices[0].message.content));
+        const content = completion.choices[0].message.content;
+        res.json(JSON.parse(content));
 
     } catch (error) {
-        console.error("❌ Ошибка:", error.message);
-        res.status(500).json({ error: "Ошибка сервера" });
+        console.error("❌ Ошибка сервера:", error.message);
+        res.status(500).json({ error: "Ошибка генерации" });
     }
 });
 
