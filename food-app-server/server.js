@@ -108,10 +108,9 @@ app.post('/generate', async (req, res) => {
             return res.json(JSON.parse(content));
         }
         throw new Error("Ollama не ответила или вернула ошибку");
-
-    } catch (error) {
-        // --- 2. РЕЗЕРВ: GROQ (Вместо OpenAI) ---
-        console.log(`⚠️ Ollama недоступна. Переключаюсь на Groq (Llama 3.3)...`);
+} catch (error) {
+        // --- 2. РЕЗЕРВ: GROQ (Твоя секретная супер-сила) ---
+        console.log(`⚠️ Ollama недоступна. Запускаю Llama 3.3 70B на Groq...`);
         
         try {
             const completion = await groq.chat.completions.create({
@@ -120,8 +119,23 @@ app.post('/generate', async (req, res) => {
                     { role: "user", content: prompt }
                 ],
                 model: "llama-3.3-70b-versatile",
-                temperature: 0.6,
-                response_format: { type: "json_object" } // Groq тоже умеет строго в JSON
+                temperature: 0.7, // Делает текст менее "роботизированным"
+                max_tokens: 4096,  // Дает ИИ писать длинные, сочные тексты
+                response_format: { type: "json_object" } // ГАРАНТИРУЕТ, что сайт не выдаст ошибку
+            });
+
+            const content = completion.choices[0].message.content;
+            console.log("✅ Успех: Ответ получен от Groq (Llama 3.3)!");
+            return res.json(JSON.parse(content));
+
+        } catch (groqError) {
+            console.error("❌ Критическая ошибка Groq:", groqError.message);
+            res.status(500).json({ 
+                error: "Сервис временно недоступен", 
+                details: groqError.message 
+            });
+        }
+    }
             });
 
             const content = completion.choices[0].message.content;
