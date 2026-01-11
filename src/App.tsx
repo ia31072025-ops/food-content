@@ -173,7 +173,20 @@ function App() {
     </div>
   );
 }
+{/* Найди блок для YouTube Описания и измени его так: */}
+<div style={{ whiteSpace: 'pre-wrap' }}>
+  {result.youtube.description}
+</div>
 
+{/* Найди блок для Telegram и измени его так: */}
+<div style={{ whiteSpace: 'pre-wrap' }}>
+  {result.social.telegram}
+</div>
+
+{/* Найди блок для VK и измени его так: */}
+<div style={{ whiteSpace: 'pre-wrap' }}>
+  {result.social.vk}
+</div>
 // Стили
 const inputStyle = { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' };
 const selectStyle = { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', flex: 1, minWidth: '150px' };
