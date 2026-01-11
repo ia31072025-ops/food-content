@@ -9,59 +9,88 @@ app.use(express.json());
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-app.post('/generate', async (req, res) => {
-    const { dish, additional, type, level } = req.body;
+app.post('/api/generate', async (req, res) => {
+  const { dish, additional } = req.body;
+  
+  if (!dish || dish.trim() === '') {
+    return res.status(400).json({ error: "Название блюда обязательно" });
+  }
+  
+  // Улучшенный системный промпт
+  const systemMessage = `Ты — профессиональный YouTube-продюсер и фуд-копирайтер. 
+Создай контент-пакет для блюда: "${dish}".
+${additional ? `Особенности: ${additional}` : ''}
 
-const systemMessage = `Ты — профессиональный YouTube-продюсер. 
-Создай сочное SEO-оформление для "${dish}".
+ПРАВИЛА ТЕКСТА:
+- Используй двойной перенос строки (\\n\\n) для разделения абзацев.
+- Текст должен быть готов к копированию.
 
-ПРАВИЛА ФОРМАТИРОВАНИЯ:
-1. Используй двойной перенос строки (\\n\\n) между заголовками, абзацами и разделами.
-2. Текст должен быть разбит на короткие, читабельные абзацы.
-3. Каждый пункт тайм-кодов и ингредиентов пиши с НОВОЙ СТРОКИ.
+1. YOUTUBE: В поле "description" включи: 3 названия (КАПСОМ), ХУК, SEO-описание (500 слов), список ингредиентов, таймкоды и 15 хештегов.
 
-СТРУКТУРА В ПОЛЕ "description":
-- ТРИ ВАРИАНТА НАЗВАНИЯ (каждый с новой строки)
-- ХУК (отдельный абзац)
-- ОСНОВНОЙ ТЕКСТ (минимум 5-7 абзацев с описанием вкуса и процесса)
-- СПИСОК ИНГРЕДИЕНТОВ
-- ТАЙМ-КОДЫ
-- ХЕШТЕГИ
+2. TELEGRAM (Тон: Дружеский):
+   - Заголовок: Сделай его ВИЗУАЛЬНО жирным (используй **Текст**).
+   - Тело: 2-3 предложения.
+   - Ингредиенты: Список через •.
+   - Ссылка: [ССЫЛКА].
+   - Провокационный вопрос в конце.
 
-ОТВЕТЬ СТРОГО В JSON:
+3. VK (Тон: Уютный):
+   - Эмоциональное вступление.
+   - Блок "Почему нужно сохранить".
+   - ПОЛНЫЙ текстовый рецепт.
+   - Призыв к лайку и 5-7 хештегов.
+
+ОТВЕТЬ СТРОГО В JSON (БЕЗ ЛИШНЕГО ТЕКСТА):
 {
-  "youtube": { "description": "Здесь весь оформленный текст с переносами строк \\n\\n" },
-  "social": { "telegram": "Пост для ТГ", "vk": "Пост для ВК" },
-  "recipe": { "ingredients": [], "steps": [] }
+  "youtube": { 
+    "titles": [], 
+    "description": "" 
+  },
+  "social": { 
+    "telegram": "", 
+    "vk": "" 
+  },
+  "recipe": { 
+    "ingredients": [], 
+    "steps": [] 
+  }
 }`;
 
-    try {
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: "system", content: systemMessage },
-                { role: "user", content: `Блюдо: ${dish}, особенности: ${additional}.` }
-            ],
-            model: "llama-3.3-70b-versatile",
-            temperature: 0.7,
-            max_tokens: 4000,
-            response_format: { type: "json_object" }
-        });
+  try {
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: `Создай пакет для: ${dish}` }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 4096, // Увеличил, так как просим 500 слов в описании
+      response_format: { type: "json_object" }
+    });
 
-        const result = JSON.parse(completion.choices[0].message.content);
-        
-        // Гарантируем, что ingredients — это массив, чтобы App.tsx не падал
-        if (!Array.isArray(result.recipe.ingredients)) {
-            result.recipe.ingredients = [result.recipe.ingredients];
-        }
-
-        res.json(result);
-    } catch (error) {
-        console.error("Ошибка:", error);
-        res.status(500).json({ error: "Ошибка сервера" });
+    const content = completion.choices[0].message.content;
+    let result = JSON.parse(content);
+    
+    // Дополнительная проверка структуры (защита от пустых ответов)
+    if (!result.youtube || !result.social || !result.recipe) {
+      throw new Error("AI вернул неполную структуру данных");
     }
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Ошибка Groq:', error);
+    
+    const status = error.status || 500;
+    const message = status === 429 ? "Лимит запросов исчерпан" : "Ошибка генерации";
+    
+    res.status(status).json({ error: message });
+  }
 });
+
+// Прочие эндпоинты без изменений...
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+app.use((req, res) => res.status(404).json({ error: "Not Found" }));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 LIVE`);
-});
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 OK: Port ${PORT}`));
