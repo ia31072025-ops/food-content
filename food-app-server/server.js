@@ -8,41 +8,14 @@ app.use(cors());
 app.use(express.json());
 
 const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY // Удалили текстовый ключ
+    apiKey: process.env.GROQ_API_KEY
 });
-
 
 app.post('/generate', async (req, res) => {
     const { dish, type, level, channelFormat, additional } = req.body;
     
-    const prompt = `
-    Ты — элитный шеф-повар и ТОП-YouTube-SEO специалист 2026.
-    Создай полный контент-пакет в формате JSON для блюда "${dish}".
-    ПАРАМЕТРЫ: Тип: ${type}, Сложность: ${level}, Формат: ${channelFormat}, Уточнения: ${additional}.
-
-    ФОРМАТ ОТВЕТА: СТРОГО JSON.
-    {
-      "recipe": {
-        "title": "Название",
-        "time": "Время",
-        "difficulty": "Сложность",
-        "ingredients": ["Список"],
-        "steps": ["Шаги"]
-      },
-      "youtube": {
-        "titles": ["5 названий"],
-        "description": "Описание 400-600 слов",
-        "timestamps": ["Таймкоды"],
-        "tags": "теги, через, запятую",
-        "hashtags": "#хештеги"
-      },
-      "social": {
-        "telegram": "Пост",
-        "vk": "Статья"
-      }
-    }`;
-
-   const systemMessage = `Ты — профессиональный YouTube-продюсер и фуд-копирайтер с опытом создания вирусного контента. Твоя задача — создать полное SEO-оформление для кулинарного видео, которое заставит зрителя кликнуть и досмотреть до конца.
+    // ТВОЙ ПРОМПТ ВСТАВЛЕН ДОСЛОВНО:
+    const systemMessage = `Ты — профессиональный YouTube-продюсер и фуд-копирайтер с опытом создания вирусного контента. Твоя задача — создать полное SEO-оформление для кулинарного видео, которое заставит зрителя кликнуть и досмотреть до конца.
 
 Я дам тебе название блюда и краткие детали. На основе этого ты должен сгенерировать:
 
@@ -63,55 +36,42 @@ app.post('/generate', async (req, res) => {
 4. ХЕШТЕГИ:
    - 5-7 самых релевантных тегов для YouTube (#Рецепт #Еда #КакПриготовить...).
 
----
-МОЙ ЗАПРОС:
-Блюдо: [ВСТАВЬ НАЗВАНИЕ БЛЮДА]
-Особенности: [НАПРИМЕР: готовится 15 минут, без духовки, секретный соус]
+ОТВЕТ ДАЙ СТРОГО В ФОРМАТЕ JSON:
+{
+  "recipe": { "title": "", "time": "", "difficulty": "", "ingredients": [], "steps": [] },
+  "youtube": { "titles": [], "description": "", "hashtags": "" },
+  "social": { "telegram": "", "vk": "" }
+}`;
 
-СТРУКТУРА ОТВЕТА:
-1. Заголовок с ключевым словом (Clickbait, но честный).
-2. Захватывающее вступление (первые 2 строки), содержащее главные ключевые слова для алгоритмов.
-3. Блок "В этом видео вы узнаете:" (список преимуществ).
-4. Список ингредиентов с иконками.
-5. Блок хэштегов в конце (5-7 штук).
-
-ПРАВИЛА:
-- Никаких приветствий типа "Доброе утро".
-- Используй сильные глаголы: "Узнайте", "Попробуйте", "Секрет", "Шок".
-- Текст должен быть разбит на короткие абзацы для удобства чтения.
-- Пиши на русском языке, сочно и профессионально.
-- Ответ дай строго в формате JSON: {"description": "весь текст здесь"}`;
+    const prompt = `Блюдо: ${dish}. Особенности: ${additional}. Параметры: Тип ${type}, Сложность ${level}.`;
 
     try {
-        // --- 1. ПОПЫТКА ЧЕРЕЗ OLLAMA (Твой локальный ПК через туннель) ---
-        console.log(`📡 [${new Date().toLocaleTimeString()}] Запрос к Ollama (${dish})...`);
-        
+        // ПОПЫТКА 1: OLLAMA
+        console.log(`📡 Запрос к Ollama (${dish})...`);
         const ollamaResponse = await fetch(`${process.env.OLLAMA_URL}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: process.env.MODEL_NAME_LOCAL || "gemma2:9b",
+                model: process.env.MODEL_NAME_LOCAL || "gemma2:latest",
                 messages: [
                     { role: "system", content: systemMessage },
                     { role: "user", content: prompt }
                 ],
-                stream: false,
-                options: { temperature: 0.6 }
+                stream: false
             }),
-            signal: AbortSignal.timeout(15000) // Сократил до 15 сек, чтобы быстрее переключаться на запасной вариант
+            signal: AbortSignal.timeout(15000)
         });
 
         if (ollamaResponse.ok) {
             const data = await ollamaResponse.json();
             let content = data.message.content.replace(/```json/g, '').replace(/```/g, '').trim();
-            console.log("✅ Успех: Ответ получен от Ollama!");
             return res.json(JSON.parse(content));
         }
-        throw new Error("Ollama не ответила или вернула ошибку");
-} catch (error) {
-        // --- 2. РЕЗЕРВ: GROQ (Твоя секретная супер-сила) ---
-        console.log(`⚠️ Ollama недоступна. Запускаю Llama 3.3 70B на Groq...`);
-        
+        throw new Error("Ollama offline");
+
+    } catch (error) {
+        // ПОПЫТКА 2: GROQ
+        console.log(`⚠️ Переключаюсь на Groq (Llama 3.3 70B)...`);
         try {
             const completion = await groq.chat.completions.create({
                 messages: [
@@ -119,27 +79,22 @@ app.post('/generate', async (req, res) => {
                     { role: "user", content: prompt }
                 ],
                 model: "llama-3.3-70b-versatile",
-                temperature: 0.7, // Делает текст менее "роботизированным"
-                max_tokens: 4096,  // Дает ИИ писать длинные, сочные тексты
-                response_format: { type: "json_object" } // ГАРАНТИРУЕТ, что сайт не выдаст ошибку
+                temperature: 0.7,
+                max_tokens: 4096,
+                response_format: { type: "json_object" }
             });
 
             const content = completion.choices[0].message.content;
-            console.log("✅ Успех: Ответ получен от Groq (Llama 3.3)!");
             return res.json(JSON.parse(content));
 
         } catch (groqError) {
-            console.error("❌ Критическая ошибка Groq:", groqError.message);
-            res.status(500).json({ 
-                error: "Сервис временно недоступен", 
-                details: groqError.message 
-            });
+            console.error("❌ Ошибка:", groqError.message);
+            res.status(500).json({ error: "Ошибка генерации", details: groqError.message });
         }
+    }
+});
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`-----------------------------------------------`);
-    console.log(`🚀 YT Chef PRO 3.0 запущен на порту ${PORT}`);
-    console.log(`💡 Резервный ИИ: Groq Cloud (Llama 3.3)`);
-    console.log(`-----------------------------------------------`);
+    console.log(`🚀 YT Chef PRO запущен на порту ${PORT}`);
 });
