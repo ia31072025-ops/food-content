@@ -7,14 +7,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY
-});
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 app.post('/generate', async (req, res) => {
     const { dish, additional, type, level } = req.body;
 
-    // --- ТВОЙ ПРОМПТ ДОСЛОВНО ---
+    // ТВОЙ ПРОМПТ ДОСЛОВНО + ИСПРАВЛЕННАЯ СТРУКТУРА JSON
     const systemMessage = `Ты — профессиональный YouTube-продюсер и фуд-копирайтер с опытом создания вирусного контента. Твоя задача — создать полное SEO-оформление для кулинарного видео, которое заставит зрителя кликнуть и досмотреть до конца.
 
 Я дам тебе название блюда и краткие детали. На основе этого ты должен сгенерировать:
@@ -41,27 +39,29 @@ app.post('/generate', async (req, res) => {
 Блюдо: ${dish}
 Особенности: ${additional || 'Классический рецепт'}
 
-СТРУКТУРА ОТВЕТА:
-1. Заголовок с ключевым словом (Clickbait, но честный).
-2. Захватывающее вступление (первые 2 строки), содержащее главные ключевые слова для алгоритмов.
-3. Блок "В этом видео вы узнаете:" (список преимуществ).
-4. Список ингредиентов с иконками.
-5. Блок хэштегов в конце (5-7 штук).
-
 ПРАВИЛА:
 - Никаких приветствий типа "Доброе утро".
 - Используй сильные глаголы: "Узнайте", "Попробуйте", "Секрет", "Шок".
 - Текст должен быть разбит на короткие абзацы для удобства чтения.
 - Пиши на русском языке, сочно и профессионально.
-- Ответ дай строго в формате JSON: {"description": "весь текст здесь", "recipe": {"ingredients": [], "steps": []}}`;
+
+ОТВЕТ ДАЙ СТРОГО В ФОРМАТЕ JSON:
+{
+  "youtube": {
+    "description": "Здесь ВЕСЬ текст описания, включая заголовки, хук и хештеги"
+  },
+  "recipe": {
+    "title": "${dish}",
+    "ingredients": ["Список ингредиентов"],
+    "steps": ["Шаги приготовления"]
+  }
+}`;
 
     try {
         console.log(`📡 Запрос для: ${dish}`);
 
         const completion = await groq.chat.completions.create({
-            messages: [
-                { role: "system", content: systemMessage }
-            ],
+            messages: [{ role: "system", content: systemMessage }],
             model: "llama-3.3-70b-versatile",
             temperature: 0.7,
             max_tokens: 4000,
@@ -72,7 +72,7 @@ app.post('/generate', async (req, res) => {
         res.json(JSON.parse(content));
 
     } catch (error) {
-        console.error("❌ Ошибка сервера:", error.message);
+        console.error("❌ Ошибка:", error.message);
         res.status(500).json({ error: "Ошибка генерации" });
     }
 });
