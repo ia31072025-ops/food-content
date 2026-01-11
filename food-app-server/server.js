@@ -12,33 +12,27 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 app.post('/generate', async (req, res) => {
     const { dish, additional, type, level } = req.body;
 
-    const systemMessage = `Ты — профессиональный YouTube-продюсер и фуд-копирайтер. 
-Твоя задача — создать вирусный контент для блюда: "${dish}".
+    const systemMessage = `Ты — профессиональный YouTube-продюсер. 
+Создай контент для блюда: "${dish}".
 
-ВЫПОЛНИ СЛЕДУЮЩИЕ ПУНКТЫ СТРОГО:
-1. ТРИ ВАРИАНТА НАЗВАНИЯ (Эмоциональный, Поисковый, Смешанный) — используй КАПС и эмодзи.
-2. ЖИВОЕ ОПИСАНИЕ (600 слов): ХУК в начале, сенсорные слова, SEO-блок.
-3. ТАЙМКОДЫ: минимум 5 этапов.
-4. ИНГРЕДИЕНТЫ: список с иконками.
-5. ПОСТЫ: готовые тексты для Telegram и VK.
+ВАЖНО ДЛЯ СТРУКТУРЫ:
+1. Ингредиенты (ingredients) должны быть МАССИВОМ строк ["ингредиент 1", "ингредиент 2"].
+2. В описании (description) напиши: Три варианта заголовка (ВИРУСНЫЙ, SEO, СМЕШАННЫЙ), затем ХУК, затем ОГРОМНЫЙ сочный текст (600 слов), ТАЙМКОДЫ и ХЕШТЕГИ.
+3. Посты для Telegram и VK должны быть длинными и готовыми к публикации.
 
-ОТВЕТЬ СТРОГО В ЭТОМ JSON ФОРМАТЕ:
+ОТВЕТЬ СТРОГО В ЭТОМ JSON:
 {
   "youtube": {
-    "titles": {
-      "viral": "Вариант 1: Эмоциональный",
-      "seo": "Вариант 2: Поисковый",
-      "mixed": "Вариант 3: Смешанный"
-    },
-    "description": "Здесь ХУК + ДЛИННЫЙ ТЕКСТ (600 слов) + ТАЙМКОДЫ + ХЕШТЕГИ",
-    "ingredients": "Список ингредиентов с иконками"
-  },
-  "social": {
-    "telegram": "Готовый виральный пост для Telegram",
-    "vk": "Подробный пост для VK"
+    "description": "ЗДЕСЬ: 3 НАЗВАНИЯ + ХУК + ТЕКСТ 600 СЛОВ + ТАЙМКОДЫ + ХЕШТЕГИ"
   },
   "recipe": {
-    "steps": ["Детальные шаги приготовления"]
+    "title": "${dish}",
+    "ingredients": ["мясо 500г", "соль по вкусу"], 
+    "steps": ["шаг 1", "шаг 2"]
+  },
+  "social": {
+    "telegram": "Пост для Телеграм с эмодзи",
+    "vk": "Пост для ВК"
   }
 }`;
 
@@ -46,21 +40,29 @@ app.post('/generate', async (req, res) => {
         const completion = await groq.chat.completions.create({
             messages: [
                 { role: "system", content: systemMessage },
-                { role: "user", content: `Блюдо: ${dish}. Особенности: ${additional || 'Классический рецепт'}. Тип: ${type}, Сложность: ${level}.` }
+                { role: "user", content: `Блюдо: ${dish}, особенности: ${additional}.` }
             ],
             model: "llama-3.3-70b-versatile",
             temperature: 0.7,
-            max_tokens: 4096,
+            max_tokens: 4000,
             response_format: { type: "json_object" }
         });
 
-        res.json(JSON.parse(completion.choices[0].message.content));
+        const result = JSON.parse(completion.choices[0].message.content);
+        
+        // Гарантируем, что ingredients — это массив, чтобы App.tsx не падал
+        if (!Array.isArray(result.recipe.ingredients)) {
+            result.recipe.ingredients = [result.recipe.ingredients];
+        }
+
+        res.json(result);
     } catch (error) {
-        res.status(500).json({ error: "Server Error" });
+        console.error("Ошибка:", error);
+        res.status(500).json({ error: "Ошибка сервера" });
     }
 });
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server LIVE`);
+    console.log(`🚀 LIVE`);
 });
