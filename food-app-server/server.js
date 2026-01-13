@@ -68,7 +68,7 @@ ${additional ? `Особенности: ${additional}` : ''}
         { role: "system", content: systemMessage },
         { role: "user", content: `Создай пакет для: ${dish}` }
       ],
-      model: "gemma2-9b-it",
+      model: "llama-3.3-70b-versatile",
       temperature: 0.7,
       max_tokens: 6000, 
       response_format: { type: "json_object" }
