@@ -1,56 +1,100 @@
+
+
 const express = require('express');
 const cors = require('cors');
 const Groq = require('groq-sdk');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
 app.use(cors());
 app.use(express.json());
 
-app.post('/generate-recipe', async (req, res) => {
-    const { dishName, ingredients } = req.body;
-    if (!dishName) return res.status(400).json({ error: "Назови блюдо" });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    console.log(`🚀 Начинаю генерацию через Qwen 3: ${dishName}`);
+app.post('/api/generate', async (req, res) => {
+  const { dish, additional } = req.body;
+  
+  if (!dish || dish.trim() === '') {
+    return res.status(400).json({ error: "Название блюда обязательно" });
+  }
+  
+  const systemMessage = `Ты — топовый YouTube-продюсер и фуд-копирайтер. 
+Создай контент-пакет для блюда: "${dish}".
+${additional ? `Особенности: ${additional}` : ''}
 
-    const systemPrompt = `Ты — эксперт по SEO и шеф-повар. Напиши контент-пакет для "${dishName}".
-    ОТВЕТЬ СТРОГО В JSON.
+ПРАВИЛА ТЕКСТА:
+- Используй двойной перенос строки (\\n\\n) между логическими блоками.
+- Текст должен быть сочным, вызывающим аппетит и профессиональным.
+
+1. YOUTUBE (Поле "description"): 
+   - Напиши СТАТЬЮ-ЛОНГРИД (минимум 500 слов чистого текста). напиши сео-описание рецепта в начале с хуком, далее везде ключевые слова для рецепта.
+   - ВНИМАНИЕ: Списки ингредиентов и таймкоды НЕ СЧИТАЮТСЯ в объем этой статьи.
+   - ТАЙМКОДЫ: Сделай их логичными (00:00 - Интро, 01:30 - Подготовка, 04:00 - Главный процесс, 07:30 - Секретный ингредиент, 09:00 - Подача).
+   - КЛЮЧЕВЫЕ СЛОВА: 15 штук в конце.
+
+2. ЗАГОЛОВОК (Поле "titles"): Сгенерируй 3 СОВЕРШЕННО РАЗНЫХ варианта:
+   - 1. SEO-оптимизированный (для поиска: "Как приготовить [блюдо]...").
+   - 2. Хайповый/Кликбейтный (эмоции, капс: "БОЛЬШЕ НЕ ПОКУПАЮ...").
+   - 3. Интригующий (акцент на секрет или ошибку: "Вы всю жизнь готовили [блюдо] неправильно!").
+
+3. ПОСТ ДЛЯ TELEGRAM:
+   - Тон: Личный, дружеский, "свой в доску". Как будто пишешь другу.
+   - Структура:
+     1. Заголовок (Жирный шрифт): Короткий и емкий.
+     2. Тело поста: 2-3 предложения о том, почему это вкусно. Без воды.
+     3. Ингредиенты: Скрытый список (используй символ •), чтобы было удобно купить в магазине.
+     4. CTA: Призыв посмотреть полное видео по ссылке [ССЫЛКА].
+     5. Вопрос аудитории: Чтобы провоцировать комментарии.
+
+4. VK (Тон: Уютный):
+   - Эмоциональное вступление + подробный пошаговый текстовый рецепт.
+
+ОТВЕТЬ СТРОГО В JSON:
+{
+  "youtube": { "titles": ["", "", ""], "description": "" },
+  "social": { "telegram": "", "vk": "" },
+  "recipe": { "ingredients": [], "steps": [] }
+}`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: `Создай пакет для: ${dish}` }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.8,
+      max_tokens: 6000, 
+      response_format: { type: "json_object" }
+    });
+
+    const content = completion.choices[0].message.content;
+    let result = JSON.parse(content);
     
-    Обязательно:
-    1. В "description" (700+ слов) начни с ХУКА. Используй ключи: "рецепт ${dishName}", "как приготовить".
-    2. Опиши историю и науку процесса (почему получается именно такой вкус).
-    3. Telegram: пост-лонгрид с эмодзи.
-    4. Заголовки: SEO, Кликбейт, Интрига.`;
-
-    try {
-        const completion = await groq.chat.completions.create({
-            // Используем ID модели ровно как в твоем примере
-            model: "qwen/qwen3-32b", 
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: `Создай полный пакет для ${dishName}` }
-            ],
-            temperature: 0.6,
-            // Для JSON формата max_tokens должен быть достаточным
-            max_tokens: 5000, 
-            top_p: 0.95,
-            // Добавляем поддержку формата JSON
-            response_format: { type: "json_object" }
-        });
-
-        const result = JSON.parse(completion.choices[0].message.content);
-        console.log("✅ Готово! Отправляю данные.");
-        res.json(result);
-
-    } catch (error) {
-        console.error("❌ Ошибка в терминале:", error.message);
-        res.status(500).json({ error: "Ошибка нейросети", details: error.message });
+    if (!result.youtube || !result.social || !result.recipe) {
+      throw new Error("AI вернул неполную структуру данных");
     }
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Ошибка Groq:', error);
+    const status = error.status || 500;
+    res.status(status).json({ error: "Ошибка генерации" });
+  }
 });
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Обработка несуществующих маршрутов
+app.use((req, res) => {
+  res.status(404).json({ error: "Маршрут не найден" });
+});
+
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🔥 Сервер Обжорка.ру на Qwen 3 запущен (Порт ${PORT})`);
+  console.log(`🚀 Сервер запущен на порту ${PORT}`);
 });
