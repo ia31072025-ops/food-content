@@ -1,72 +1,75 @@
 const express = require('express');
+const axios = require('axios');
 const cors = require('cors');
-const Groq = require('groq-sdk');
-require('dotenv').config();
 
 const app = express();
+const PORT = process.env.PORT || 3001;
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-app.post('/api/generate', async (req, res) => {
-  const { dish, additional } = req.body;
+// Улучшенный строитель промпта: заставляем писать много и правильно
+function buildPrompt(dishName, ingredients) {
+  const ingrList = ingredients ? ingredients.split(',').map(i => i.trim()).filter(i => i).join(', ') : 'на твое усмотрение';
   
-  if (!dish || dish.trim() === '') {
-    return res.status(400).json({ error: "Название блюда обязательно" });
-  }
-  
-const systemMessage = `Ты — профессиональный фуд-райтер с гонораром 100$ за пост. Твоя задача — написать ОГРОМНЫЙ и ВКУСНЫЙ пакет контента для блюда: "${dish}".
+  return `Ты — элитный фуд-блогер, технолог и SEO-стратег. Твоя задача — создать профессиональный пакет материалов для блюда: "${dishName}".
+Ингредиенты: ${ingrList}.
 
-ПРАВИЛА:
-1. НИКАКИХ ОБЩИХ ФРАЗ типа "сегодня мы приготовим". 
-2. В каждом блоке пиши МИНИМУМ 3-4 РАЗВЕРНУТЫХ АБЗАЦА текста.
-3. Используй сочные эпитеты: "янтарная корочка", "ностальгический хруст", "аромат поджаристой муки".
+ИНСТРУКЦИИ ПО КОНТЕНТУ:
+1. YouTube Title: Создай 3 варианта: SEO-оптимизированный, кликбейтный и интригующий. Выдай их массивом в поле "youtube_title".
+2. Description: Это ЛОНГРИД (600+ слов). Напиши историю блюда, физику процессов (например, зачем нужна обварка для сушек или реакция Майяра для мяса). ПИШИ СОЧНО, используй эпитеты.
+3. Steps: Каждый шаг должен быть описан максимально подробно (минимум 2-3 предложения на шаг).
+4. Telegram Post: Это АВТОРСКИЙ лонгрид для канала. Начни с личной истории или "хука", используй эмодзи, опиши текстуру и хруст. Не менее 150 слов.
+5. VK Post: Подробная статья-инструкция, чтобы можно было приготовить, не открывая видео.
 
-СТРУКТУРА JSON:
+Верни ТОЛЬКО JSON. Никакой болтовни.
 
-"description": (ДЛЯ YOUTUBE)
-- Напиши ЦЕЛУЮ СТАТЬЮ. 
-- Абзац 1: История появления блюда в деталях (откуда пошло название, как ели раньше).
-- Абзац 2: Технологические тонкости. Почему именно такая температура? Почему важна обварка? Что происходит с белком в тесте? 
-- Абзац 3: Личные советы по выбору муки и добавок (мак, кунжут, соль).
-- В КОНЦЕ: Таймкоды не от болды а строго по рецепту  и 15 хештегов.
-
-"telegram":
-- Напиши пост в стиле "лайфстайл-блогер". 
-- Начни с ХУКА (интригующего предложения). 
-- Расскажи, почему магазинные сушки — это "пластик", а домашние — "любовь". 
-- Подробно опиши процесс хруста. 
-- Вставь список ингредиентов и ССЫЛКУ.
-
-"vk":
-- Подробнейший ГИД по приготовлению. Эмоциональное вступление + пошаговый рецепт, где каждый шаг описан 2-3 предложениями (не просто "смешайте", а "аккуратно соедините компоненты до получения эластичной, податливой структуры").
-
-ОТВЕТЬ СТРОГО В JSON:
 {
-  "youtube": { "titles": ["", "", ""], "description": "" },
-  "social": { "telegram": "", "vk": "" },
-  "recipe": { "ingredients": [], "steps": [] }
+  "youtube_title": ["", "", ""],
+  "description": "ОГРОМНЫЙ ТЕКСТ ТУТ",
+  "ingredients": ["", ""],
+  "steps": ["", ""],
+  "telegram_post": "ДЛИННЫЙ ПОСТ ТУТ",
+  "vk_post": "ПОДРОБНАЯ СТАТЬЯ ТУТ",
+  "hashtags": ["#ОбжоркаРу", "#рецепт", "..."]
 }`;
+}
+
+app.post('/generate-recipe', async (req, res) => {
+  const { dishName, ingredients } = req.body;
+
+  if (!dishName) return res.status(400).json({ error: 'Нужно название блюда' });
 
   try {
-    const completion = await groq.chat.completions.create({
-      messages: [
-        { role: "system", content: systemMessage },
-        { role: "user", content: `Напиши профессиональный рецепт и контент для: ${dish}` }
-      ],
-      model: "llama-3.3-70b-versatile",
-      temperature: 0.3, // СНИЖЕНО: Меньше фантазий, больше точности
-      max_tokens: 6000,
-      response_format: { type: "json_object" }
-    });
+    const prompt = buildPrompt(dishName, ingredients);
 
-    res.json(JSON.parse(completion.choices[0].message.content));
+    const ollamaResponse = await axios.post(
+      'http://localhost:11434/api/generate',
+      {
+        model: 'llama3:8b', // Если будет тормозить или тупить, лучше переключись на Groq и модель 70b
+        prompt,
+        stream: false,
+        options: {
+          temperature: 0.5,     // Золотая середина между правдой и красотой
+          num_predict: 4096,    // Увеличили лимит, чтобы влез длинный текст
+          top_p: 0.9
+        }
+      },
+      { timeout: 180000 } // Увеличил таймаут до 3 минут, так как текст будет длинным
+    );
+
+    let rawText = ollamaResponse.data.response.trim();
+    const jsonMatch = rawText.match(/(\{[\s\S]*\})/);
+    
+    if (!jsonMatch) throw new Error('Модель не вернула JSON');
+
+    const result = JSON.parse(jsonMatch[1]);
+    res.json(result);
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Ошибка генерации" });
+    console.error('Ошибка:', error.message);
+    res.status(500).json({ error: 'Ошибка генерации', details: error.message });
   }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Сервер на порту ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Сервер летит на порту ${PORT}`));
