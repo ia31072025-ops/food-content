@@ -6,7 +6,6 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Инициализация Groq
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 app.use(cors());
@@ -15,52 +14,52 @@ app.use(express.json());
 app.post('/generate-recipe', async (req, res) => {
   const { dishName, ingredients } = req.body;
 
-  if (!dishName) {
-    return res.status(400).json({ error: "Назовите блюдо" });
-  }
+  const systemMessage = `Ты — топовый SEO-копирайтер и шеф-повар. 
+Напиши контент-пакет для блюда: "${dishName}". 
 
-  // Самый жесткий промпт на объем и точность
-  const systemMessage = `Ты — элитный кулинарный технолог и копирайтер. Создай контент-пакет для: "${dishName}".
-Ингредиенты: ${ingredients || 'базовый набор'}.
+[БЛОК 1: SEO DESCRIPTION ДЛЯ YOUTUBE]
+- Начни с мощного ХУКА (интрига, решение проблемы).
+- Напиши СТАТЬЮ (600+ слов). 
+- Обязательно вшей ключевые слова: "как приготовить ${dishName}", "пошаговый рецепт", "секреты шеф-повара", "в домашних условиях".
+- Опиши историю, химию процессов (почему это вкусно) и выбор продуктов.
 
-ПРАВИЛА (НЕ НАРУШАТЬ):
-1. YouTube Title: 3 разных варианта (SEO, Кликбейт, Интрига).
-2. YouTube Description: ОГРОМНАЯ СТАТЬЯ (минимум 600-800 слов). Подробно про историю, про химию процесса (для сушек — ОБЯЗАТЕЛЬНО про обварку в кипятке для блеска и хруста), советы по выбору муки. ПИШИ СОЧНО.
-3. Telegram: Полноценный пост-лонгрид (200+ слов). Не список, а сторителлинг с эмодзи.
-4. VK: Пошаговый гайд. Каждый шаг — это 3-4 предложения с описанием ощущений (тесто должно стать эластичным и т.д.).
+[БЛОК 2: SEO ЗАГОЛОВКИ]
+1. SEO-оптимизированный (с ключами).
+2. Хайповый (для кликов).
+3. Интригующий.
 
-ОТВЕТЬ СТРОГО В JSON:
+[БЛОК 3: ТЕЛЕГРАМ]
+Пост-лонгрид (200+ слов) со сторителлингом.
+
+[БЛОК 4: РЕЦЕПТ]
+Ингредиенты списком и пошаговые шаги (каждый шаг подробно).
+
+ОТВЕТЬ ТОЛЬКО JSON:
 {
-  "youtube_title": ["", "", ""],
+  "youtube_title": [],
   "description": "",
   "ingredients": [],
   "steps": [],
   "telegram_post": "",
   "vk_post": "",
-  "hashtags": ["#ОбжоркаРу", "#рецепт"]
+  "hashtags": []
 }`;
 
   try {
     const completion = await groq.chat.completions.create({
-      messages: [
-        { role: "system", content: systemMessage },
-        { role: "user", content: `Напиши экспертный лонгрид про ${dishName}` }
-      ],
-      model: "llama-3.3-70b-versatile",
-      temperature: 0.5, // Чтобы и красиво, и без ошибок в технологии
-      max_tokens: 6000, 
+      messages: [{ role: "system", content: systemMessage }],
+      model: "qwen/qwen3-32b", // Твоя новая супер-модель!
+      temperature: 0.6,
+      max_tokens: 6000, // Qwen отлично держит длинный контекст
+      top_p: 0.95,
       response_format: { type: "json_object" }
     });
 
-    const result = JSON.parse(completion.choices[0].message.content);
-    res.json(result);
-
+    res.json(JSON.parse(completion.choices[0].message.content));
   } catch (error) {
-    console.error('Ошибка Groq:', error);
-    res.status(500).json({ error: "Ошибка нейросети. Проверьте GROQ_API_KEY в файле .env" });
+    console.error(error);
+    res.status(500).json({ error: "Ошибка генерации через Qwen-3" });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Сервер на Groq запущен! Порт: ${PORT}`);
-});
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Сервер на Qwen-3 запущен (Порт ${PORT})`));
