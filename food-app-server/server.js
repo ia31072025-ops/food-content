@@ -6,119 +6,85 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public')); // Это позволит открывать интерфейс по адресу http://localhost:10000
 
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY // Удалили текстовый ключ
-});
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+app.post('/api/generate', async (req, res) => {
+  const { dish, additional } = req.body;
+  
+  if (!dish || dish.trim() === '') {
+    return res.status(400).json({ error: "Название блюда обязательно" });
+  }
+  
+  const systemMessage = `Ты — топовый YouTube-продюсер и фуд-копирайтер. 
+Создай контент-пакет для блюда: "${dish}".
+${additional ? `Особенности: ${additional}` : ''}
 
-app.post('/generate', async (req, res) => {
-    const { dish, type, level, channelFormat, additional } = req.body;
-    
-    const prompt = `
-    Ты — элитный шеф-повар и ТОП-YouTube-SEO специалист 2026.
-    Создай полный контент-пакет в формате JSON для блюда "${dish}".
-    ПАРАМЕТРЫ: Тип: ${type}, Сложность: ${level}, Формат: ${channelFormat}, Уточнения: ${additional}.
+ПРАВИЛА ТЕКСТА:
+- Используй двойной перенос строки (\\n\\n) между логическими блоками.
+- Текст должен быть сочным, вызывающим аппетит и профессиональным.
 
-    ФОРМАТ ОТВЕТА: СТРОГО JSON.
-    {
-      "recipe": {
-        "title": "Название",
-        "time": "Время",
-        "difficulty": "Сложность",
-        "ingredients": ["Список"],
-        "steps": ["Шаги"]
-      },
-      "youtube": {
-        "titles": ["5 названий"],
-        "description": "Описание 400-600 слов",
-        "timestamps": ["Таймкоды"],
-        "tags": "теги, через, запятую",
-        "hashtags": "#хештеги"
-      },
-      "social": {
-        "telegram": "Пост",
-        "vk": "Статья"
+1. YOUTUBE (Поле "description"): 
+   - Напиши СТАТЬЮ-ЛОНГРИД (минимум 500 слов чистого текста). напиши сео-описание рецепта в начале с хуком, далее везде ключевые слова для рецепта.
+   - ВНИМАНИЕ: Списки ингредиентов и таймкоды НЕ СЧИТАЮТСЯ в объем этой статьи.
+   - ТАЙМКОДЫ: Сделай их логичными (00:00 - Интро, 01:30 - Подготовка, 04:00 - Главный процесс, 07:30 - Секретный ингредиент, 09:00 - Подача).
+   - КЛЮЧЕВЫЕ СЛОВА: 15 штук в конце.
+   - ПОШАГОВЫЙ РЕЦЕПТ: Ты — опытный кулинарный технолог. Опиши подробный пошаговый рецепт приготовления «Название блюда» для новичка. В каждом шаге укажи: что именно делать, сколько времени занимает шаг, температуру (если важно). Ответ выдай в виде нумерованного списка шагов. Не добавляй ничего, кроме указанной структуры.
+   - ЗАПРЕЩЕНО: ограничиваться только списком ингредиентов, пропускать этапы приготовления, писать текст вне указанной структуры.
+
+2. ЗАГОЛОВОК (Поле "titles"): Сгенерируй 3 СОВЕРШЕННО РАЗНЫХ варианта:
+   - 1. SEO-оптимизированный (для поиска: "Как приготовить [блюдо]...").
+   - 2. Хайповый/Кликбейтный (эмоции, капс: "БОЛЬШЕ НЕ ПОКУПАЮ...").
+   - 3. Интригующий (акцент на секрет или ошибку: "Вы всю жизнь готовили [блюдо] неправильно!").
+
+3. ПОСТ ДЛЯ TELEGRAM:
+   - Тон: Личный, дружеский, "свой в доску". Обязательно: ХУК-в начале. Призыв подписаться.
+   - Структура:
+     1. Заголовок (Жирный шрифт): Короткий и емкий.
+     2. Тело поста: 2-3 предложения о том, почему это вкусно. Без воды.
+     3. Ингредиенты: Скрытый список (используй символ •), чтобы было удобно купить в магазине.
+     4. CTA: Призыв посмотреть полное видео по ссылке [ССЫЛКА].
+     5. Вопрос аудитории: Чтобы провоцировать комментарии.
+
+4. VK (Тон: Уютный):
+   - Эмоциональное вступление + подробный пошаговый текстовый рецепт.
+
+ОТВЕТЬ СТРОГО В JSON:
+{
+  "youtube": { "titles": ["", "", ""], "description": "" },
+  "social": { "telegram": "", "vk": "" },
+ "recipe": {
+        "ingredients": ["ВАЖНО: В массиве 'ingredients' обязательно указывай точные граммовки. Пример: 'Мука пшеничная — 400 г'"],
+        "steps": ["Подробное пошаговое описание"]
       }
-    }`;
-
-   const systemMessage = `Ты — ведущий SEO-специалист по YouTube и фуд-блогер. 
-Твоя цель: создать описание, которое выведет видео в ТОП поиска.
-
-СТРУКТУРА ОТВЕТА:
-1. Заголовок с ключевым словом (Clickbait, но честный).
-2. Захватывающее вступление (первые 2 строки), содержащее главные ключевые слова для алгоритмов.
-3. Блок "В этом видео вы узнаете:" (список преимуществ).
-4. Список ингредиентов с иконками.
-5. Блок хэштегов в конце (5-7 штук).
-
-ПРАВИЛА:
-- Никаких приветствий типа "Доброе утро".
-- Используй сильные глаголы: "Узнайте", "Попробуйте", "Секрет", "Шок".
-- Текст должен быть разбит на короткие абзацы для удобства чтения.
-- Пиши на русском языке, сочно и профессионально.
-- Ответ дай строго в формате JSON: {"description": "весь текст здесь"}`;
-
-    try {
-        // --- 1. ПОПЫТКА ЧЕРЕЗ OLLAMA (Твой локальный ПК через туннель) ---
-        console.log(`📡 [${new Date().toLocaleTimeString()}] Запрос к Ollama (${dish})...`);
-        
-        const ollamaResponse = await fetch(`${process.env.OLLAMA_URL}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: process.env.MODEL_NAME_LOCAL || "gemma2:9b",
-                messages: [
-                    { role: "system", content: systemMessage },
-                    { role: "user", content: prompt }
-                ],
-                stream: false,
-                options: { temperature: 0.6 }
-            }),
-            signal: AbortSignal.timeout(15000) // Сократил до 15 сек, чтобы быстрее переключаться на запасной вариант
-        });
-
-        if (ollamaResponse.ok) {
-            const data = await ollamaResponse.json();
-            let content = data.message.content.replace(/```json/g, '').replace(/```/g, '').trim();
-            console.log("✅ Успех: Ответ получен от Ollama!");
-            return res.json(JSON.parse(content));
-        }
-        throw new Error("Ollama не ответила или вернула ошибку");
-
-    } catch (error) {
-        // --- 2. РЕЗЕРВ: GROQ (Вместо OpenAI) ---
-        console.log(`⚠️ Ollama недоступна. Переключаюсь на Groq (Llama 3.3)...`);
-        
-        try {
-            const completion = await groq.chat.completions.create({
-                messages: [
-                    { role: "system", content: systemMessage },
-                    { role: "user", content: prompt }
-                ],
-                model: "llama-3.3-70b-versatile",
-                temperature: 0.6,
-                response_format: { type: "json_object" } // Groq тоже умеет строго в JSON
-            });
-
-            const content = completion.choices[0].message.content;
-            console.log("✅ Успех: Ответ получен от Groq!");
-            return res.json(JSON.parse(content));
-
-        } catch (groqError) {
-            console.error("❌ Критическая ошибка всех сервисов:", groqError.message);
-            res.status(500).json({ 
-                error: "Все сервисы (Ollama и Groq) недоступны", 
-                details: groqError.message 
-            });
-        }
     }
+  \`; // Конец промпта
+ВАЖНО: В массиве "ingredients" обязательно указывай точные граммовки или объемы для каждого продукта. Не пиши просто "Мука", пиши "Мука пшеничная — 400 г".`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: `Создай пакет для: ${dish}` }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 6000, 
+      response_format: { type: "json_object" }
+    });
+
+    const content = completion.choices[0].message.content;
+    const result = JSON.parse(content);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Ошибка Groq:', error);
+    res.status(500).json({ error: "Ошибка генерации контента" });
+  }
 });
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`-----------------------------------------------`);
-    console.log(`🚀 YT Chef PRO 3.0 запущен на порту ${PORT}`);
-    console.log(`💡 Резервный ИИ: Groq Cloud (Llama 3.3)`);
-    console.log(`-----------------------------------------------`);
+  console.log(`🚀 Сервер запущен на порту ${PORT}`);
 });
